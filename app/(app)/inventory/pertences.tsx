@@ -250,7 +250,7 @@ function GroupCard({
       </View>
 
       {/* Inline dropdown menu — rendered outside the card to escape overflow:hidden */}
-      {isMenuOpen && (
+      {isMenuOpen && !isSemLocal && (
         <View style={groupStyles.dropdown}>
           <TouchableOpacity style={groupStyles.dropdownOption} onPress={onEditLocation}>
             <Text style={groupStyles.dropdownOptionText}>Editar local</Text>
@@ -1077,9 +1077,11 @@ const groupStyles = StyleSheet.create({
   chevron: {
     fontSize: 14,
     color: Colors.textSecondary,
+    marginLeft: 8,
+    marginRight: 2,
   },
   menuButton: {
-    padding: 8,
+    padding: 10,
   },
   menuButtonText: {
     fontSize: 18,
