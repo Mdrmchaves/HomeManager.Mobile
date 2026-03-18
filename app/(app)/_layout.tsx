@@ -208,8 +208,24 @@ export default function AppLayout() {
             headerShown: false,
           }}
         >
-          <Tabs.Screen name="dashboard" options={{ title: 'Início' }} />
-          <Tabs.Screen name="inventory" options={{ title: 'Inventário' }} />
+          <Tabs.Screen
+            name="dashboard"
+            options={{
+              title: 'Início',
+              tabBarIcon: ({ color }) => (
+                <Text style={{ fontSize: 20, color }}>🏠</Text>
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="inventory"
+            options={{
+              title: 'Inventário',
+              tabBarIcon: ({ color }) => (
+                <Text style={{ fontSize: 20, color }}>📦</Text>
+              ),
+            }}
+          />
           <Tabs.Screen name="household-setup" options={{ href: null }} />
         </Tabs>
       </View>

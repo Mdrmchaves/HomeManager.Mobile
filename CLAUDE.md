@@ -136,14 +136,15 @@ eas build --platform android --profile preview  # APK para testar
 - Ecrã de Login/Registo com confirmação de email (Bloco 1 concluído)
 - Household Setup — criar ou entrar via código de convite (Bloco 2 concluído)
 - Shell da app: header com seletor de household (+ adicionar casa),
-  avatar com logout, tab bar inferior (Bloco 3 concluído)
+  avatar com logout, tab bar inferior com ícones emoji (Bloco 3 concluído)
 - Inventário com abas Pertences/Despensa; lista de pertences agrupada
   por local com pesquisa, filtros por destino (Manter/Vender/Doar/Descartar)
   e fotos com URLs assinadas (bucket privado); redesign visual alinhado com
   web: linha colorida por destino, header de local com ícone e contador,
   botão adicionar por local, grupos minimizáveis, botão criar local;
   gestão de locais inline (editar/excluir via menu ⋮), todos os locais
-  visíveis mesmo vazios, barra lateral cinza para itens sem destino (Bloco 4a+4c concluídos)
+  visíveis mesmo vazios, barra lateral cinza para itens sem destino;
+  fix dropdown menu via Modal (zIndex cross-component) (Bloco 4a+4c concluídos)
 - Formulário de item: criar/editar com câmara nativa e upload
   para Supabase Storage; fix reload após delete (Bloco 4b concluído)
 
