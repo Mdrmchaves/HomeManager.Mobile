@@ -64,15 +64,17 @@ export const StorageService = {
     uri: string,
     fileExt: string = 'jpg'
   ): Promise<string> => {
-    const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 10);
+    const fileName = `${timestamp}-${random}.${fileExt}`;
     const filePath = `items/${fileName}`;
 
     const response = await fetch(uri);
-    const blob = await response.blob();
+    const arrayBuffer = await response.arrayBuffer();
 
     const { error } = await supabase.storage
       .from('item-photos')
-      .upload(filePath, blob, {
+      .upload(filePath, arrayBuffer, {
         contentType: `image/${fileExt}`,
         upsert: false,
       });

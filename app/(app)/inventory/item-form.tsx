@@ -164,8 +164,14 @@ export default function ItemForm({
       let photoUrl: string | undefined = item?.photoUrl;
       // If photo was removed (previewUri null but item had one)
       if (!previewUri && !selectedFile) photoUrl = undefined;
-      if (selectedFile) {
-        photoUrl = await StorageService.uploadItemPhoto(selectedFile.uri, selectedFile.ext);
+      try {
+        if (selectedFile) {
+          console.log('Tentando upload:', selectedFile);
+          photoUrl = await StorageService.uploadItemPhoto(selectedFile.uri, selectedFile.ext);
+          console.log('Upload ok:', photoUrl);
+        }
+      } catch (e) {
+        console.log('Erro no submit:', e);
       }
 
       const payload = {

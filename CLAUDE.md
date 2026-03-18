@@ -97,7 +97,15 @@ npx expo-doctor         # validar dependências
 eas build --platform android --profile preview  # APK para testar
 ```
 
-## 8. Diferenças vs Web (Angular)
+## 8. Gotchas React Native (bugs já encontrados)
+
+| Problema | Causa | Solução aplicada |
+|----------|-------|-----------------|
+| `crypto.randomUUID()` não existe | API Web não disponível no RN | `Date.now() + Math.random().toString(36).substring(2,10)` |
+| Upload Supabase Storage falha com "Network request failed" | SDK não aceita `Blob` no RN | Usar `response.arrayBuffer()` em vez de `response.blob()` |
+| SecureStore falha silenciosamente em tokens grandes | Limite de 2048 bytes por chave | `chunkStorage` em `auth.service.ts` — divide em chunks de 1800 bytes |
+
+## 9. Diferenças vs Web (Angular)
 
 | Aspecto | Web | Mobile |
 |---------|-----|--------|
@@ -110,7 +118,7 @@ eas build --platform android --profile preview  # APK para testar
 | Listas longas | *ngFor | FlatList (virtualizado) |
 | Modais | div absoluta | Modal RN |
 
-## 9. Estado Actual
+## 10. Estado Actual
 
 ### Feito
 - Projecto Expo SDK 54 funcional (validado com expo-doctor)
@@ -131,9 +139,11 @@ eas build --platform android --profile preview  # APK para testar
   avatar com logout, tab bar inferior (Bloco 3 concluído)
 - Inventário com abas Pertences/Despensa; lista de pertences agrupada
   por local com pesquisa, filtros por destino (Manter/Vender/Doar/Descartar)
-  e fotos com URLs assinadas (bucket privado) (Bloco 4a concluído)
+  e fotos com URLs assinadas (bucket privado); redesign visual alinhado com
+  web: linha colorida por destino, header de local com ícone e contador,
+  botão adicionar por local, grupos minimizáveis, botão criar local (Bloco 4a concluído)
 - Formulário de item: criar/editar com câmara nativa e upload
-  para Supabase Storage (Bloco 4b concluído)
+  para Supabase Storage; fix reload após delete (Bloco 4b concluído)
 
 ### Backlog (por ordem)
 1. Gestão de Locais (Bloco 4c)

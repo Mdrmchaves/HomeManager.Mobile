@@ -5,7 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Modal,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useHousehold } from '../_layout';
@@ -26,11 +28,18 @@ const DESTINATION_MAP: Record<string, string> = {
   Trash: 'Descartar',
 };
 
-const DESTINATION_STYLES: Record<string, { bg: string; text: string }> = {
+const DESTINATION_BADGE_STYLES: Record<string, { bg: string; text: string }> = {
   Manter: { bg: '#d1fae5', text: '#065f46' },
   Vender: { bg: '#dbeafe', text: '#1e40af' },
   Doar: { bg: '#ede9fe', text: '#5b21b6' },
   Descartar: { bg: '#fee2e2', text: '#991b1b' },
+};
+
+const DESTINATION_BAR_COLORS: Record<string, string> = {
+  Keep: '#059669',
+  Sell: '#2563eb',
+  Donate: '#7c3aed',
+  Trash: '#dc2626',
 };
 
 const DESTINATION_FILTER_OPTIONS = ['Todos', 'Manter', 'Vender', 'Doar', 'Descartar'];
@@ -40,11 +49,17 @@ function getDestinationLabel(destination?: string): string | null {
   return DESTINATION_MAP[destination] ?? null;
 }
 
+function getDestinationBarColor(destination?: string): string {
+  if (!destination || destination === 'Undecided') return '#22c55e';
+  return DESTINATION_BAR_COLORS[destination] ?? '#22c55e';
+}
+
 // ─── Group builder ────────────────────────────────────────────────────────────
 
 interface Group {
   id: string | null;
   name: string;
+  icon?: string;
   items: InventoryItem[];
 }
 
@@ -69,10 +84,9 @@ function buildGroups(
   for (const item of filtered) {
     const key = item.locationId ?? '__none__';
     if (!groupMap.has(key)) {
-      const name = item.locationId
-        ? (locations.find((l) => l.id === item.locationId)?.name ?? item.locationName ?? 'Sem local')
-        : 'Sem local';
-      groupMap.set(key, { id: item.locationId ?? null, name, items: [] });
+      const loc = item.locationId ? locations.find((l) => l.id === item.locationId) : null;
+      const name = loc?.name ?? item.locationName ?? 'Sem local';
+      groupMap.set(key, { id: item.locationId ?? null, name, icon: loc?.icon, items: [] });
     }
     groupMap.get(key)!.items.push(item);
   }
@@ -98,16 +112,20 @@ function ItemRow({
   onEdit: () => void;
 }) {
   const destLabel = getDestinationLabel(item.destination);
-  const destStyle = destLabel ? DESTINATION_STYLES[destLabel] : null;
+  const destBadgeStyle = destLabel ? DESTINATION_BADGE_STYLES[destLabel] : null;
   const signedUrl = item.photoUrl ? photoUrls[item.photoUrl] : null;
+  const barColor = getDestinationBarColor(item.destination);
 
   return (
     <View style={[itemStyles.row, !isLast && itemStyles.rowBorder]}>
+      {/* Colored left bar */}
+      <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
+
       {/* Photo */}
       {signedUrl ? (
         <Image
           source={{ uri: signedUrl }}
-          style={{ width: 44, height: 44, borderRadius: 8 }}
+          style={itemStyles.photo}
           contentFit="cover"
           cachePolicy="memory-disk"
           placeholder={null}
@@ -127,29 +145,81 @@ function ItemRow({
           )}
         </Text>
 
-        <View style={itemStyles.tags}>
-          {item.categoryName && (
-            <View style={itemStyles.categoryChip}>
-              <Text style={itemStyles.categoryChipText}>{item.categoryName}</Text>
-            </View>
-          )}
-          {item.value != null && (
-            <Text style={itemStyles.value}>€{item.value.toFixed(2)}</Text>
-          )}
-          {destLabel && destStyle && (
-            <View style={[itemStyles.destBadge, { backgroundColor: destStyle.bg }]}>
-              <Text style={[itemStyles.destBadgeText, { color: destStyle.text }]}>
+        {destLabel && destBadgeStyle && (
+          <View style={itemStyles.badges}>
+            <View style={[itemStyles.destBadge, { backgroundColor: destBadgeStyle.bg }]}>
+              <Text style={[itemStyles.destBadgeText, { color: destBadgeStyle.text }]}>
                 {destLabel}
               </Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
 
       {/* Edit button */}
       <TouchableOpacity style={itemStyles.editButton} onPress={onEdit}>
         <Text style={itemStyles.editButtonText}>Editar</Text>
       </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Group card ───────────────────────────────────────────────────────────────
+
+function GroupCard({
+  group,
+  collapsed,
+  photoUrls,
+  onToggle,
+  onEditItem,
+  onAddItem,
+}: {
+  group: Group;
+  collapsed: boolean;
+  photoUrls: Record<string, string>;
+  onToggle: () => void;
+  onEditItem: (item: InventoryItem) => void;
+  onAddItem: () => void;
+}) {
+  const isSemLocal = group.id === null;
+
+  return (
+    <View style={groupStyles.card}>
+      {/* Header */}
+      <TouchableOpacity style={groupStyles.header} onPress={onToggle} activeOpacity={0.7}>
+        <View style={groupStyles.headerLeft}>
+          {!!group.icon && <Text style={groupStyles.headerIcon}>{group.icon}</Text>}
+          <Text style={[groupStyles.headerName, isSemLocal && groupStyles.headerNameMuted]}>
+            {group.name}
+          </Text>
+          <View style={groupStyles.countBadge}>
+            <Text style={groupStyles.countBadgeText}>{group.items.length}</Text>
+          </View>
+        </View>
+        <Text style={groupStyles.chevron}>{collapsed ? '▸' : '▾'}</Text>
+      </TouchableOpacity>
+
+      {/* Items + add button */}
+      {!collapsed && (
+        <>
+          {group.items.map((item, idx) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              isLast={idx === group.items.length - 1}
+              photoUrls={photoUrls}
+              onEdit={() => onEditItem(item)}
+            />
+          ))}
+
+          {!isSemLocal && (
+            <TouchableOpacity style={groupStyles.addItemBtn} onPress={onAddItem}>
+              <Text style={groupStyles.addItemBtnPlus}>+</Text>
+              <Text style={groupStyles.addItemBtnText}>Adicionar a {group.name}</Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -170,6 +240,11 @@ export default function PertencesTab() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
   const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>(undefined);
+  const [collapsedLocations, setCollapsedLocations] = useState<Set<string>>(new Set());
+  const [showNewLocationModal, setShowNewLocationModal] = useState(false);
+  const [newLocationName, setNewLocationName] = useState('');
+  const [newLocationIcon, setNewLocationIcon] = useState('');
+  const [savingLocation, setSavingLocation] = useState(false);
 
   async function loadData(isReload = false) {
     if (!selectedHousehold) return;
@@ -206,6 +281,39 @@ export default function PertencesTab() {
     loadData(!isFirstLoad);
     setSelectedDestination('Todos');
   }, [selectedHousehold?.id]);
+
+  function toggleLocation(locationId: string | null) {
+    const key = locationId ?? '__sem_local__';
+    setCollapsedLocations((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  function isCollapsed(locationId: string | null) {
+    return collapsedLocations.has(locationId ?? '__sem_local__');
+  }
+
+  async function createLocation() {
+    if (!newLocationName.trim() || !selectedHousehold) return;
+    setSavingLocation(true);
+    try {
+      await LocationService.createLocation(
+        selectedHousehold.id,
+        newLocationName.trim(),
+        newLocationIcon.trim() || undefined
+      );
+      setNewLocationName('');
+      setNewLocationIcon('');
+      setShowNewLocationModal(false);
+      loadData(true);
+    } catch {
+      // erro silencioso por agora
+    } finally {
+      setSavingLocation(false);
+    }
+  }
 
   const groups = buildGroups(items, locations, searchQuery, selectedDestination);
   const hasResults = groups.some((g) => g.items.length > 0);
@@ -285,26 +393,33 @@ export default function PertencesTab() {
         {/* Groups */}
         {groups.map((group) =>
           group.items.length === 0 ? null : (
-            <View key={group.id ?? '__none__'}>
-              <Text style={styles.groupHeader}>{group.name.toUpperCase()}</Text>
-              <View style={styles.groupCard}>
-                {group.items.map((item, idx) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    isLast={idx === group.items.length - 1}
-                    photoUrls={photoUrls}
-                    onEdit={() => {
-                      setEditingItem(item);
-                      setPreselectedLocationId(undefined);
-                      setShowItemForm(true);
-                    }}
-                  />
-                ))}
-              </View>
-            </View>
+            <GroupCard
+              key={group.id ?? '__none__'}
+              group={group}
+              collapsed={isCollapsed(group.id)}
+              photoUrls={photoUrls}
+              onToggle={() => toggleLocation(group.id)}
+              onEditItem={(item) => {
+                setEditingItem(item);
+                setPreselectedLocationId(undefined);
+                setShowItemForm(true);
+              }}
+              onAddItem={() => {
+                setEditingItem(undefined);
+                setPreselectedLocationId(group.id ?? undefined);
+                setShowItemForm(true);
+              }}
+            />
           )
         )}
+
+        {/* Adicionar local */}
+        <TouchableOpacity
+          style={styles.addLocationButton}
+          onPress={() => setShowNewLocationModal(true)}
+        >
+          <Text style={styles.addLocationButtonText}>+ Adicionar local</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* FAB */}
@@ -318,6 +433,65 @@ export default function PertencesTab() {
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      {/* Novo local modal */}
+      <Modal
+        visible={showNewLocationModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowNewLocationModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowNewLocationModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Novo local</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: Cozinha, Sala..."
+                placeholderTextColor={Colors.textSecondary}
+                value={newLocationName}
+                onChangeText={setNewLocationName}
+                autoCapitalize="sentences"
+                autoFocus
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Emoji opcional (ex: 🍳)"
+                placeholderTextColor={Colors.textSecondary}
+                value={newLocationIcon}
+                onChangeText={setNewLocationIcon}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnCancel]}
+                  onPress={() => setShowNewLocationModal(false)}
+                >
+                  <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    styles.modalBtnConfirm,
+                    (!newLocationName.trim() || savingLocation) && styles.modalBtnDisabled,
+                  ]}
+                  onPress={createLocation}
+                  disabled={!newLocationName.trim() || savingLocation}
+                >
+                  <Text style={styles.modalBtnConfirmText}>
+                    {savingLocation ? 'A adicionar...' : 'Adicionar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Item form */}
       {selectedHousehold && (
@@ -456,20 +630,81 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Groups
-  groupHeader: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 16,
+  // Add location button
+  addLocationButton: {
+    marginTop: 24,
+    marginBottom: 32,
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    borderStyle: 'dashed',
   },
-  groupCard: {
+  addLocationButtonText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+
+  // New location modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 8,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  modalInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalBtnCancel: {
+    backgroundColor: Colors.border,
+  },
+  modalBtnCancelText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  modalBtnConfirm: {
+    backgroundColor: Colors.primary,
+  },
+  modalBtnConfirmText: {
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  modalBtnDisabled: {
+    opacity: 0.5,
   },
 
   // FAB
@@ -497,24 +732,106 @@ const styles = StyleSheet.create({
   },
 });
 
+// ─── Group card styles ────────────────────────────────────────────────────────
+
+const groupStyles = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  headerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  headerNameMuted: {
+    color: Colors.textSecondary,
+  },
+  countBadge: {
+    minWidth: 22,
+    height: 22,
+    backgroundColor: Colors.border,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  chevron: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  addItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  addItemBtnPlus: {
+    fontSize: 16,
+    color: Colors.primary,
+    fontWeight: '300',
+  },
+  addItemBtnText: {
+    fontSize: 14,
+    color: Colors.primary,
+  },
+});
+
+// ─── Item row styles ──────────────────────────────────────────────────────────
+
 const itemStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   rowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-
-  // Photo
+  colorBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
+  },
   photo: {
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
   },
   photoPlaceholder: {
     width: 44,
@@ -525,13 +842,10 @@ const itemStyles = StyleSheet.create({
     alignItems: 'center',
   },
   photoEmoji: {
-    fontSize: 22,
+    fontSize: 20,
   },
-
-  // Info
   info: {
     flex: 1,
-    gap: 4,
   },
   name: {
     fontSize: 14,
@@ -543,25 +857,11 @@ const itemStyles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '400',
   },
-  tags: {
+  badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
     gap: 6,
-  },
-  categoryChip: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryChipText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  value: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+    marginTop: 4,
   },
   destBadge: {
     paddingHorizontal: 8,
@@ -572,10 +872,9 @@ const itemStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
-
-  // Edit
   editButton: {
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   editButtonText: {
     fontSize: 12,

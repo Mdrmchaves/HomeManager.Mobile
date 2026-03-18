@@ -8,6 +8,8 @@ export function setAuthTokenGetter(getter: () => Promise<string | null>) {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = authTokenGetter ? await authTokenGetter() : null;
+  const url = `${Config.apiUrl}${path}`;
+  console.log('API Request:', url);
 
   const response = await fetch(`${Config.apiUrl}${path}`, {
     ...options,
