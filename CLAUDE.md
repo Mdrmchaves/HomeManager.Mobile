@@ -141,10 +141,11 @@ eas build --platform android --profile preview  # APK para testar
   por local com pesquisa, filtros por destino (Manter/Vender/Doar/Descartar)
   e fotos com URLs assinadas (bucket privado); redesign visual alinhado com
   web: linha colorida por destino, header de local com ícone e contador,
-  botão adicionar por local, grupos minimizáveis, botão criar local (Bloco 4a concluído)
+  botão adicionar por local, grupos minimizáveis, botão criar local;
+  gestão de locais inline (editar/excluir via menu ⋮), todos os locais
+  visíveis mesmo vazios, barra lateral cinza para itens sem destino (Bloco 4a+4c concluídos)
 - Formulário de item: criar/editar com câmara nativa e upload
   para Supabase Storage; fix reload após delete (Bloco 4b concluído)
 
 ### Backlog (por ordem)
-1. Gestão de Locais (Bloco 4c)
-2. Dashboard
+1. Dashboard

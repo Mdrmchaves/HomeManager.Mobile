@@ -50,16 +50,17 @@ function getDestinationLabel(destination?: string): string | null {
 }
 
 function getDestinationBarColor(destination?: string): string {
-  if (!destination || destination === 'Undecided') return '#22c55e';
-  return DESTINATION_BAR_COLORS[destination] ?? '#22c55e';
+  if (!destination || destination === 'Undecided') return '#d1d5db';
+  return DESTINATION_BAR_COLORS[destination] ?? '#d1d5db';
 }
 
 // ─── Group builder ────────────────────────────────────────────────────────────
 
 interface Group {
-  id: string | null;
-  name: string;
-  icon?: string;
+  locationId: string | null;
+  locationName: string;
+  locationIcon?: string;
+  location: Location | null;
   items: InventoryItem[];
 }
 
@@ -69,7 +70,7 @@ function buildGroups(
   searchQuery: string,
   selectedDestination: string
 ): Group[] {
-  const filtered = items.filter((item) => {
+  const filteredItems = items.filter((item) => {
     const matchSearch =
       !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchDestination =
@@ -78,24 +79,26 @@ function buildGroups(
     return matchSearch && matchDestination;
   });
 
-  const locationOrder = new Map(locations.map((l, i) => [l.id, i]));
-  const groupMap = new Map<string, Group>();
+  const locationGroups: Group[] = locations.map((loc) => ({
+    locationId: loc.id,
+    locationName: loc.name,
+    locationIcon: loc.icon,
+    location: loc,
+    items: filteredItems.filter((i) => i.locationId === loc.id),
+  }));
 
-  for (const item of filtered) {
-    const key = item.locationId ?? '__none__';
-    if (!groupMap.has(key)) {
-      const loc = item.locationId ? locations.find((l) => l.id === item.locationId) : null;
-      const name = loc?.name ?? item.locationName ?? 'Sem local';
-      groupMap.set(key, { id: item.locationId ?? null, name, icon: loc?.icon, items: [] });
-    }
-    groupMap.get(key)!.items.push(item);
+  const noLocationItems = filteredItems.filter((i) => !i.locationId);
+  if (noLocationItems.length > 0) {
+    locationGroups.push({
+      locationId: null,
+      locationName: 'Sem Local',
+      locationIcon: undefined,
+      location: null,
+      items: noLocationItems,
+    });
   }
 
-  return [...groupMap.values()].sort((a, b) => {
-    if (a.id === null) return 1;
-    if (b.id === null) return -1;
-    return (locationOrder.get(a.id) ?? 999) - (locationOrder.get(b.id) ?? 999);
-  });
+  return locationGroups;
 }
 
 // ─── Item row ─────────────────────────────────────────────────────────────────
@@ -169,56 +172,96 @@ function ItemRow({
 function GroupCard({
   group,
   collapsed,
+  isMenuOpen,
   photoUrls,
   onToggle,
   onEditItem,
   onAddItem,
+  onOpenMenu,
+  onEditLocation,
+  onDeleteLocation,
 }: {
   group: Group;
   collapsed: boolean;
+  isMenuOpen: boolean;
   photoUrls: Record<string, string>;
   onToggle: () => void;
   onEditItem: (item: InventoryItem) => void;
   onAddItem: () => void;
+  onOpenMenu: () => void;
+  onEditLocation: () => void;
+  onDeleteLocation: () => void;
 }) {
-  const isSemLocal = group.id === null;
+  const isSemLocal = group.locationId === null;
+  // Header border only shown when there is something below (items or add button)
+  const hasContentBelow = !collapsed && (group.items.length > 0 || !isSemLocal);
 
   return (
-    <View style={groupStyles.card}>
-      {/* Header */}
-      <TouchableOpacity style={groupStyles.header} onPress={onToggle} activeOpacity={0.7}>
-        <View style={groupStyles.headerLeft}>
-          {!!group.icon && <Text style={groupStyles.headerIcon}>{group.icon}</Text>}
-          <Text style={[groupStyles.headerName, isSemLocal && groupStyles.headerNameMuted]}>
-            {group.name}
-          </Text>
-          <View style={groupStyles.countBadge}>
-            <Text style={groupStyles.countBadgeText}>{group.items.length}</Text>
+    <View style={groupStyles.wrapper}>
+      <View style={groupStyles.card}>
+        {/* Header */}
+        <TouchableOpacity
+          style={[groupStyles.header, hasContentBelow && groupStyles.headerBorder]}
+          onPress={onToggle}
+          activeOpacity={0.7}
+        >
+          <View style={groupStyles.headerLeft}>
+            {!!group.locationIcon && (
+              <Text style={groupStyles.headerIcon}>{group.locationIcon}</Text>
+            )}
+            <Text style={[groupStyles.headerName, isSemLocal && groupStyles.headerNameMuted]}>
+              {group.locationName}
+            </Text>
+            <View style={groupStyles.countBadge}>
+              <Text style={groupStyles.countBadgeText}>{group.items.length}</Text>
+            </View>
           </View>
+          <View style={groupStyles.headerRight}>
+            <Text style={groupStyles.chevron}>{collapsed ? '▸' : '▾'}</Text>
+            {!isSemLocal && (
+              <TouchableOpacity style={groupStyles.menuButton} onPress={onOpenMenu}>
+                <Text style={groupStyles.menuButtonText}>⋮</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Items + add button */}
+        {!collapsed && (
+          <>
+            {group.items.map((item, idx) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                isLast={idx === group.items.length - 1}
+                photoUrls={photoUrls}
+                onEdit={() => onEditItem(item)}
+              />
+            ))}
+
+            {!isSemLocal && (
+              <TouchableOpacity style={groupStyles.addItemBtn} onPress={onAddItem}>
+                <Text style={groupStyles.addItemBtnPlus}>+</Text>
+                <Text style={groupStyles.addItemBtnText}>Adicionar a {group.locationName}</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* Inline dropdown menu — rendered outside the card to escape overflow:hidden */}
+      {isMenuOpen && (
+        <View style={groupStyles.dropdown}>
+          <TouchableOpacity style={groupStyles.dropdownOption} onPress={onEditLocation}>
+            <Text style={groupStyles.dropdownOptionText}>Editar local</Text>
+          </TouchableOpacity>
+          <View style={groupStyles.dropdownDivider} />
+          <TouchableOpacity style={groupStyles.dropdownOption} onPress={onDeleteLocation}>
+            <Text style={[groupStyles.dropdownOptionText, { color: Colors.error }]}>
+              Excluir local
+            </Text>
+          </TouchableOpacity>
         </View>
-        <Text style={groupStyles.chevron}>{collapsed ? '▸' : '▾'}</Text>
-      </TouchableOpacity>
-
-      {/* Items + add button */}
-      {!collapsed && (
-        <>
-          {group.items.map((item, idx) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              isLast={idx === group.items.length - 1}
-              photoUrls={photoUrls}
-              onEdit={() => onEditItem(item)}
-            />
-          ))}
-
-          {!isSemLocal && (
-            <TouchableOpacity style={groupStyles.addItemBtn} onPress={onAddItem}>
-              <Text style={groupStyles.addItemBtnPlus}>+</Text>
-              <Text style={groupStyles.addItemBtnText}>Adicionar a {group.name}</Text>
-            </TouchableOpacity>
-          )}
-        </>
       )}
     </View>
   );
@@ -241,10 +284,28 @@ export default function PertencesTab() {
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
   const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>(undefined);
   const [collapsedLocations, setCollapsedLocations] = useState<Set<string>>(new Set());
+
+  // New location
   const [showNewLocationModal, setShowNewLocationModal] = useState(false);
   const [newLocationName, setNewLocationName] = useState('');
   const [newLocationIcon, setNewLocationIcon] = useState('');
+
+  // Location menu
+  const [activeLocationMenu, setActiveLocationMenu] = useState<string | null>(null);
+
+  // Edit location
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [showEditLocationModal, setShowEditLocationModal] = useState(false);
+  const [editLocationName, setEditLocationName] = useState('');
+  const [editLocationIcon, setEditLocationIcon] = useState('');
+
+  // Delete location
+  const [showDeleteLocationConfirm, setShowDeleteLocationConfirm] = useState(false);
+  const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
+
+  // Saving / deleting flags
   const [savingLocation, setSavingLocation] = useState(false);
+  const [deletingLocation, setDeletingLocation] = useState(false);
 
   async function loadData(isReload = false) {
     if (!selectedHousehold) return;
@@ -315,8 +376,42 @@ export default function PertencesTab() {
     }
   }
 
+  async function saveEditLocation() {
+    if (!editingLocation || !editLocationName.trim()) return;
+    setSavingLocation(true);
+    try {
+      await LocationService.updateLocation(
+        editingLocation.id,
+        editLocationName.trim(),
+        editLocationIcon.trim() || undefined
+      );
+      setShowEditLocationModal(false);
+      setEditingLocation(null);
+      loadData(true);
+    } catch {
+      // erro silencioso por agora
+    } finally {
+      setSavingLocation(false);
+    }
+  }
+
+  async function deleteLocation() {
+    if (!locationToDelete) return;
+    setDeletingLocation(true);
+    try {
+      await LocationService.deleteLocation(locationToDelete.id);
+      setShowDeleteLocationConfirm(false);
+      setLocationToDelete(null);
+      loadData(true);
+    } catch {
+      // erro silencioso por agora
+    } finally {
+      setDeletingLocation(false);
+    }
+  }
+
   const groups = buildGroups(items, locations, searchQuery, selectedDestination);
-  const hasResults = groups.some((g) => g.items.length > 0);
+  const isEmpty = locations.length === 0 && items.length === 0;
 
   // ── Skeleton ──
   if (loading) {
@@ -383,7 +478,7 @@ export default function PertencesTab() {
         </ScrollView>
 
         {/* Empty state */}
-        {!hasResults && (
+        {isEmpty && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📦</Text>
             <Text style={styles.emptyText}>Nenhum item encontrado</Text>
@@ -391,27 +486,41 @@ export default function PertencesTab() {
         )}
 
         {/* Groups */}
-        {groups.map((group) =>
-          group.items.length === 0 ? null : (
-            <GroupCard
-              key={group.id ?? '__none__'}
-              group={group}
-              collapsed={isCollapsed(group.id)}
-              photoUrls={photoUrls}
-              onToggle={() => toggleLocation(group.id)}
-              onEditItem={(item) => {
-                setEditingItem(item);
-                setPreselectedLocationId(undefined);
-                setShowItemForm(true);
-              }}
-              onAddItem={() => {
-                setEditingItem(undefined);
-                setPreselectedLocationId(group.id ?? undefined);
-                setShowItemForm(true);
-              }}
-            />
-          )
-        )}
+        {groups.map((group) => (
+          <GroupCard
+            key={group.locationId ?? '__none__'}
+            group={group}
+            collapsed={isCollapsed(group.locationId)}
+            isMenuOpen={activeLocationMenu === group.locationId}
+            photoUrls={photoUrls}
+            onToggle={() => toggleLocation(group.locationId)}
+            onEditItem={(item) => {
+              setEditingItem(item);
+              setPreselectedLocationId(undefined);
+              setShowItemForm(true);
+            }}
+            onAddItem={() => {
+              setEditingItem(undefined);
+              setPreselectedLocationId(group.locationId ?? undefined);
+              setShowItemForm(true);
+            }}
+            onOpenMenu={() => setActiveLocationMenu(group.locationId)}
+            onEditLocation={() => {
+              if (!group.location) return;
+              setEditingLocation(group.location);
+              setEditLocationName(group.location.name);
+              setEditLocationIcon(group.location.icon ?? '');
+              setShowEditLocationModal(true);
+              setActiveLocationMenu(null);
+            }}
+            onDeleteLocation={() => {
+              if (!group.location) return;
+              setLocationToDelete(group.location);
+              setShowDeleteLocationConfirm(true);
+              setActiveLocationMenu(null);
+            }}
+          />
+        ))}
 
         {/* Adicionar local */}
         <TouchableOpacity
@@ -421,6 +530,15 @@ export default function PertencesTab() {
           <Text style={styles.addLocationButtonText}>+ Adicionar local</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Transparent overlay to close the menu when tapping outside */}
+      {activeLocationMenu !== null && (
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setActiveLocationMenu(null)}
+        />
+      )}
 
       {/* FAB */}
       <TouchableOpacity
@@ -434,7 +552,7 @@ export default function PertencesTab() {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      {/* Novo local modal */}
+      {/* ── Novo local modal ── */}
       <Modal
         visible={showNewLocationModal}
         animationType="slide"
@@ -493,7 +611,101 @@ export default function PertencesTab() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Item form */}
+      {/* ── Editar local modal ── */}
+      <Modal
+        visible={showEditLocationModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditLocationModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowEditLocationModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Editar local</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Nome do local"
+                placeholderTextColor={Colors.textSecondary}
+                value={editLocationName}
+                onChangeText={setEditLocationName}
+                autoCapitalize="sentences"
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Emoji opcional (ex: 🍳)"
+                placeholderTextColor={Colors.textSecondary}
+                value={editLocationIcon}
+                onChangeText={setEditLocationIcon}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnCancel]}
+                  onPress={() => setShowEditLocationModal(false)}
+                >
+                  <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    styles.modalBtnConfirm,
+                    (!editLocationName.trim() || savingLocation) && styles.modalBtnDisabled,
+                  ]}
+                  onPress={saveEditLocation}
+                  disabled={!editLocationName.trim() || savingLocation}
+                >
+                  <Text style={styles.modalBtnConfirmText}>
+                    {savingLocation ? 'A salvar...' : 'Salvar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Confirmar exclusão de local ── */}
+      <Modal
+        visible={showDeleteLocationConfirm}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowDeleteLocationConfirm(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmIcon}>⚠️</Text>
+            <Text style={styles.confirmTitle}>Excluir local?</Text>
+            <Text style={styles.confirmBody}>
+              Os itens associados ficarão sem local. Esta ação não pode ser desfeita.
+            </Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnCancel]}
+                onPress={() => setShowDeleteLocationConfirm(false)}
+                disabled={deletingLocation}
+              >
+                <Text style={styles.confirmBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnDelete]}
+                onPress={deleteLocation}
+                disabled={deletingLocation}
+              >
+                <Text style={styles.confirmBtnDeleteText}>
+                  {deletingLocation ? 'A excluir...' : 'Excluir'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Item form ── */}
       {selectedHousehold && (
         <ItemForm
           visible={showItemForm}
@@ -632,7 +844,7 @@ const styles = StyleSheet.create({
 
   // Add location button
   addLocationButton: {
-    marginTop: 24,
+    marginTop: 8,
     marginBottom: 32,
     alignItems: 'center',
     paddingVertical: 14,
@@ -647,7 +859,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // New location modal
+  // Menu overlay (closes dropdown when tapping outside)
+  menuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99,
+  },
+
+  // Shared modal backdrop + card
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -707,6 +929,66 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
+  // Confirm delete location
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  confirmCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  confirmIcon: {
+    fontSize: 32,
+    marginBottom: 12,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  confirmBody: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  confirmBtnCancel: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  confirmBtnCancelText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  confirmBtnDelete: {
+    backgroundColor: Colors.error,
+  },
+  confirmBtnDeleteText: {
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+
   // FAB
   fab: {
     position: 'absolute',
@@ -735,11 +1017,13 @@ const styles = StyleSheet.create({
 // ─── Group card styles ────────────────────────────────────────────────────────
 
 const groupStyles = StyleSheet.create({
+  wrapper: {
+    marginBottom: 12,
+  },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 12,
   },
   header: {
     flexDirection: 'row',
@@ -747,10 +1031,13 @@ const groupStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  headerBorder: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   headerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -762,6 +1049,7 @@ const groupStyles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
+    flexShrink: 1,
   },
   headerNameMuted: {
     color: Colors.textSecondary,
@@ -781,8 +1069,20 @@ const groupStyles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '500',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   chevron: {
     fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  menuButton: {
+    padding: 8,
+  },
+  menuButtonText: {
+    fontSize: 18,
     color: Colors.textSecondary,
   },
   addItemBtn: {
@@ -802,6 +1102,33 @@ const groupStyles = StyleSheet.create({
   addItemBtnText: {
     fontSize: 14,
     color: Colors.primary,
+  },
+  // Dropdown: rendered outside the card to escape overflow:hidden
+  dropdown: {
+    position: 'absolute',
+    top: 56,
+    right: 8,
+    zIndex: 100,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    width: 160,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+  dropdownOption: {
+    padding: 12,
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
   },
 });
 
