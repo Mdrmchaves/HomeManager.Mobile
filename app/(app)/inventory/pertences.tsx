@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -172,59 +172,62 @@ function ItemRow({
 function GroupCard({
   group,
   collapsed,
-  isMenuOpen,
   photoUrls,
   onToggle,
   onEditItem,
   onAddItem,
   onOpenMenu,
-  onEditLocation,
-  onDeleteLocation,
 }: {
   group: Group;
   collapsed: boolean;
-  isMenuOpen: boolean;
   photoUrls: Record<string, string>;
   onToggle: () => void;
   onEditItem: (item: InventoryItem) => void;
   onAddItem: () => void;
-  onOpenMenu: () => void;
-  onEditLocation: () => void;
-  onDeleteLocation: () => void;
+  onOpenMenu: (top: number) => void;
 }) {
   const isSemLocal = group.locationId === null;
-  // Header border only shown when there is something below (items or add button)
-  const hasContentBelow = !collapsed && (group.items.length > 0 || !isSemLocal);
+  const menuButtonRef = useRef<View>(null);
 
   return (
     <View style={groupStyles.wrapper}>
       <View style={groupStyles.card}>
         {/* Header */}
-        <TouchableOpacity
-          style={[groupStyles.header, hasContentBelow && groupStyles.headerBorder]}
-          onPress={onToggle}
-          activeOpacity={0.7}
-        >
-          <View style={groupStyles.headerLeft}>
+        <View style={groupStyles.locationHeader}>
+          {/* Área clicável para toggle — ocupa todo o espaço menos o ⋮ */}
+          <TouchableOpacity
+            style={groupStyles.locationHeaderLeft}
+            onPress={onToggle}
+            activeOpacity={0.7}
+          >
             {!!group.locationIcon && (
-              <Text style={groupStyles.headerIcon}>{group.locationIcon}</Text>
+              <Text style={groupStyles.locationIcon}>{group.locationIcon}</Text>
             )}
-            <Text style={[groupStyles.headerName, isSemLocal && groupStyles.headerNameMuted]}>
+            <Text style={[groupStyles.locationHeaderText, isSemLocal && groupStyles.locationHeaderTextMuted]}>
               {group.locationName}
             </Text>
-            <View style={groupStyles.countBadge}>
-              <Text style={groupStyles.countBadgeText}>{group.items.length}</Text>
+            <View style={groupStyles.locationBadge}>
+              <Text style={groupStyles.locationBadgeText}>{group.items.length}</Text>
             </View>
-          </View>
-          <View style={groupStyles.headerRight}>
-            <Text style={groupStyles.chevron}>{collapsed ? '▸' : '▾'}</Text>
-            {!isSemLocal && (
-              <TouchableOpacity style={groupStyles.menuButton} onPress={onOpenMenu}>
-                <Text style={groupStyles.menuButtonText}>⋮</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </TouchableOpacity>
+            <Text style={groupStyles.locationChevron}>{collapsed ? '▸' : '▾'}</Text>
+          </TouchableOpacity>
+
+          {/* Botão menu — separado, não propaga para o toggle */}
+          {group.location && (
+            <TouchableOpacity
+              ref={menuButtonRef as any}
+              style={groupStyles.locationMenuButton}
+              onPress={() => {
+                menuButtonRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {
+                  onOpenMenu(pageY + height);
+                });
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={groupStyles.locationMenuIcon}>⋮</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Items + add button */}
         {!collapsed && (
@@ -248,21 +251,6 @@ function GroupCard({
           </>
         )}
       </View>
-
-      {/* Inline dropdown menu — rendered outside the card to escape overflow:hidden */}
-      {isMenuOpen && !isSemLocal && (
-        <View style={groupStyles.dropdown}>
-          <TouchableOpacity style={groupStyles.dropdownOption} onPress={onEditLocation}>
-            <Text style={groupStyles.dropdownOptionText}>Editar local</Text>
-          </TouchableOpacity>
-          <View style={groupStyles.dropdownDivider} />
-          <TouchableOpacity style={groupStyles.dropdownOption} onPress={onDeleteLocation}>
-            <Text style={[groupStyles.dropdownOptionText, { color: Colors.error }]}>
-              Excluir local
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 }
@@ -292,6 +280,7 @@ export default function PertencesTab() {
 
   // Location menu
   const [activeLocationMenu, setActiveLocationMenu] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
 
   // Edit location
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -491,7 +480,6 @@ export default function PertencesTab() {
             key={group.locationId ?? '__none__'}
             group={group}
             collapsed={isCollapsed(group.locationId)}
-            isMenuOpen={activeLocationMenu === group.locationId}
             photoUrls={photoUrls}
             onToggle={() => toggleLocation(group.locationId)}
             onEditItem={(item) => {
@@ -504,20 +492,9 @@ export default function PertencesTab() {
               setPreselectedLocationId(group.locationId ?? undefined);
               setShowItemForm(true);
             }}
-            onOpenMenu={() => setActiveLocationMenu(group.locationId)}
-            onEditLocation={() => {
-              if (!group.location) return;
-              setEditingLocation(group.location);
-              setEditLocationName(group.location.name);
-              setEditLocationIcon(group.location.icon ?? '');
-              setShowEditLocationModal(true);
-              setActiveLocationMenu(null);
-            }}
-            onDeleteLocation={() => {
-              if (!group.location) return;
-              setLocationToDelete(group.location);
-              setShowDeleteLocationConfirm(true);
-              setActiveLocationMenu(null);
+            onOpenMenu={(top) => {
+              setActiveLocationMenu(group.locationId);
+              setMenuPosition({ top, right: 16 });
             }}
           />
         ))}
@@ -531,14 +508,55 @@ export default function PertencesTab() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Transparent overlay to close the menu when tapping outside */}
-      {activeLocationMenu !== null && (
+      {/* Dropdown menu — Modal para garantir zIndex acima de tudo */}
+      <Modal
+        visible={activeLocationMenu !== null}
+        transparent
+        animationType="none"
+        onRequestClose={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
+      >
         <TouchableOpacity
-          style={styles.menuOverlay}
+          style={StyleSheet.absoluteFillObject}
           activeOpacity={1}
-          onPress={() => setActiveLocationMenu(null)}
-        />
-      )}
+          onPress={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
+        >
+          {menuPosition && (
+            <View style={[styles.dropdownMenu, { top: menuPosition.top, right: menuPosition.right }]}>
+              <TouchableOpacity
+                style={styles.dropdownOption}
+                onPress={() => {
+                  const group = groups.find((g) => g.locationId === activeLocationMenu);
+                  if (!group?.location) return;
+                  setEditingLocation(group.location);
+                  setEditLocationName(group.location.name);
+                  setEditLocationIcon(group.location.icon ?? '');
+                  setShowEditLocationModal(true);
+                  setActiveLocationMenu(null);
+                  setMenuPosition(null);
+                }}
+              >
+                <Text style={styles.dropdownOptionText}>Editar local</Text>
+              </TouchableOpacity>
+              <View style={styles.dropdownDivider} />
+              <TouchableOpacity
+                style={styles.dropdownOption}
+                onPress={() => {
+                  const group = groups.find((g) => g.locationId === activeLocationMenu);
+                  if (!group?.location) return;
+                  setLocationToDelete(group.location);
+                  setShowDeleteLocationConfirm(true);
+                  setActiveLocationMenu(null);
+                  setMenuPosition(null);
+                }}
+              >
+                <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>
+                  Excluir local
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       {/* FAB */}
       <TouchableOpacity
@@ -859,16 +877,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Menu overlay (closes dropdown when tapping outside)
-  menuOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 99,
-  },
-
   // Shared modal backdrop + card
   modalBackdrop: {
     flex: 1,
@@ -989,6 +997,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // Dropdown menu (rendered via Modal)
+  dropdownMenu: {
+    position: 'absolute',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    width: 160,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+  dropdownOption: {
+    padding: 12,
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+
   // FAB
   fab: {
     position: 'absolute',
@@ -1025,65 +1058,54 @@ const groupStyles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
-  header: {
+  locationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
-  },
-  headerBorder: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerLeft: {
+  locationHeaderLeft: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  headerIcon: {
-    fontSize: 20,
-    marginRight: 8,
+  locationIcon: {
+    fontSize: 18,
   },
-  headerName: {
+  locationHeaderText: {
     fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
     flexShrink: 1,
   },
-  headerNameMuted: {
+  locationHeaderTextMuted: {
     color: Colors.textSecondary,
   },
-  countBadge: {
-    minWidth: 22,
-    height: 22,
+  locationBadge: {
     backgroundColor: Colors.border,
     borderRadius: 11,
+    minWidth: 22,
+    height: 22,
     paddingHorizontal: 6,
-    marginLeft: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  countBadgeText: {
+  locationBadgeText: {
     fontSize: 12,
     color: Colors.textSecondary,
     fontWeight: '500',
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  chevron: {
-    fontSize: 14,
+  locationChevron: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginLeft: 8,
-    marginRight: 2,
   },
-  menuButton: {
-    padding: 10,
+  locationMenuButton: {
+    padding: 8,
   },
-  menuButtonText: {
+  locationMenuIcon: {
     fontSize: 18,
     color: Colors.textSecondary,
   },
@@ -1104,33 +1126,6 @@ const groupStyles = StyleSheet.create({
   addItemBtnText: {
     fontSize: 14,
     color: Colors.primary,
-  },
-  // Dropdown: rendered outside the card to escape overflow:hidden
-  dropdown: {
-    position: 'absolute',
-    top: 56,
-    right: 8,
-    zIndex: 100,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 4,
-    width: 160,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-  },
-  dropdownOption: {
-    padding: 12,
-  },
-  dropdownOptionText: {
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
   },
 });
 
