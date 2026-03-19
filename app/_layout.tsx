@@ -20,7 +20,12 @@ export default function RootLayout() {
         try {
           const households = await HouseholdService.getMyHouseholds();
           if (!cancelled) setHasHousehold(households.length > 0);
-        } catch {
+        } catch (err) {
+          if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
+            // api.ts já chamou signOut(); onAuthStateChange trata SIGNED_OUT
+            if (!cancelled) setLoading(false);
+            return;
+          }
           if (!cancelled) setHasHousehold(false);
         }
       }
@@ -30,12 +35,20 @@ export default function RootLayout() {
       }
     });
 
-    const { data: listener } = AuthService.onAuthStateChange(async (_event, newSession) => {
-      if (!newSession) {
+    const { data: listener } = AuthService.onAuthStateChange(async (event, newSession) => {
+      // Token refresh falhou — forçar logout limpo
+      if (event === 'TOKEN_REFRESHED' && !newSession) {
         setSession(null);
         setHasHousehold(null);
         return;
       }
+
+      if (event === 'SIGNED_OUT' || !newSession) {
+        setSession(null);
+        setHasHousehold(null);
+        return;
+      }
+
       try {
         const households = await HouseholdService.getMyHouseholds();
         setHasHousehold(households.length > 0);

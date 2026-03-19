@@ -1,15 +1,18 @@
 import { Config } from '../constants/config';
 
 let authTokenGetter: (() => Promise<string | null>) | null = null;
+let signOutHandler: (() => Promise<void>) | null = null;
 
 export function setAuthTokenGetter(getter: () => Promise<string | null>) {
   authTokenGetter = getter;
 }
 
+export function setSignOutHandler(handler: () => Promise<void>) {
+  signOutHandler = handler;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = authTokenGetter ? await authTokenGetter() : null;
-  const url = `${Config.apiUrl}${path}`;
-  console.log('API Request:', url);
 
   const response = await fetch(`${Config.apiUrl}${path}`, {
     ...options,
@@ -21,11 +24,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await signOutHandler?.();
+      throw new Error('SESSION_EXPIRED');
+    }
     const error = await response.json().catch(() => ({ message: 'Erro desconhecido' }));
     throw new Error(error.message ?? `HTTP ${response.status}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export const api = {
