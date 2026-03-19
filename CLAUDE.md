@@ -93,6 +93,7 @@ HomeManager.Mobile/
 
 ## 6. Regras de Desenvolvimento
 
+- Branch principal é `main` — fazer merge de `master` → `main` e push após cada tarefa
 - SEMPRE usar `npx expo install` para pacotes nativos
 - `npm install` apenas para JS puro (ex: @supabase/supabase-js)
 - `.npmrc` tem `legacy-peer-deps=true` — não remover
