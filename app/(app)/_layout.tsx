@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { HouseholdService } from '../../services/household.service';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, supabase } from '../../services/auth.service';
 import { Colors } from '../../constants/colors';
 import type { Household } from '../../types/household';
 
@@ -144,9 +144,14 @@ function AppHeader({ userEmail }: { userEmail: string }) {
         >
           <View style={[modalStyles.avatarCard, { top: STATUS_BAR_HEIGHT + 62 }]}>
             <TouchableOpacity
-              onPress={() => {
+              onPress={async () => {
                 setShowAvatarModal(false);
-                AuthService.signOut();
+                try {
+                  await AuthService.signOut();
+                } catch {
+                  // Mesmo que falhe, forçar limpeza local
+                  await supabase.auth.signOut();
+                }
               }}
             >
               <Text style={modalStyles.signOutText}>Sair</Text>

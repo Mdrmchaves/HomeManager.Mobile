@@ -54,10 +54,20 @@ HomeManager.Mobile/
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara + upload)
 ├── components/
+│   └── inventory/
+│       ├── SearchBar.tsx
+│       ├── DestinationFilter.tsx
+│       ├── LocationGroupCard.tsx
+│       ├── InventoryItemRow.tsx
+│       └── modals/
+│           ├── AddLocationModal.tsx
+│           ├── EditLocationModal.tsx
+│           └── DeleteLocationConfirmModal.tsx
 ├── constants/
 │   ├── colors.ts
 │   └── config.ts
 ├── hooks/
+│   └── useInventory.ts
 ├── services/
 │   ├── api.ts                   ← fetch wrapper com auth token
 │   ├── auth.service.ts          ← Supabase auth + SecureStore chunked
@@ -104,6 +114,7 @@ eas build --platform android --profile preview  # APK para testar
 | `crypto.randomUUID()` não existe | API Web não disponível no RN | `Date.now() + Math.random().toString(36).substring(2,10)` |
 | Upload Supabase Storage falha com "Network request failed" | SDK não aceita `Blob` no RN | Usar `response.arrayBuffer()` em vez de `response.blob()` |
 | SecureStore falha silenciosamente em tokens grandes | Limite de 2048 bytes por chave | `chunkStorage` em `auth.service.ts` — divide em chunks de 1800 bytes |
+| Token expirado — app fica travado | `getSession()` devolve cache sem validar | Usar `refreshSession()` no boot e tratar 401 no `api.ts` com `signOut` forçado. `onAuthStateChange` deve tratar `SIGNED_OUT` e `TOKEN_REFRESHED` com `newSession null` explicitamente |
 
 ## 9. Diferenças vs Web (Angular)
 

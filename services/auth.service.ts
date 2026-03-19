@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Config } from '../constants/config';
-import { setAuthTokenGetter } from './api';
+import { setAuthTokenGetter, setSignOutHandler } from './api';
 
 const CHUNK_SIZE = 1800;
 
@@ -56,6 +56,10 @@ export const supabase = createClient(Config.supabaseUrl, Config.supabaseAnonKey,
 setAuthTokenGetter(async () => {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
+});
+
+setSignOutHandler(async () => {
+  await supabase.auth.signOut();
 });
 
 export const AuthService = {
