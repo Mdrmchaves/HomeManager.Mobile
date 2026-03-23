@@ -15,6 +15,7 @@ export function useInventory(selectedHousehold: Household | null) {
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<InventoryItem[]>([]);
 
   async function loadData(isReload = false) {
     if (!selectedHousehold) return;
@@ -51,5 +52,15 @@ export function useInventory(selectedHousehold: Household | null) {
     loadData(!isFirstLoad);
   }, [selectedHousehold?.id]);
 
-  return { items, locations, loading, error, reloading, loadData, photoUrls };
+  async function loadHistory() {
+    if (!selectedHousehold) return;
+    try {
+      const resolved = await InventoryService.getResolvedItems(selectedHousehold.id);
+      setHistoryItems(resolved);
+    } catch {
+      // deixa historyItems inalterados em caso de erro
+    }
+  }
+
+  return { items, locations, loading, error, reloading, loadData, photoUrls, historyItems, loadHistory };
 }

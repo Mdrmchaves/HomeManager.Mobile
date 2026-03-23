@@ -89,6 +89,10 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Pr
             </View>
           </View>
         )}
+
+        {item.ownerName && (
+          <Text style={itemStyles.ownerName}>👤 {item.ownerName}</Text>
+        )}
       </View>
 
       {/* Edit button */}
@@ -165,6 +169,11 @@ const itemStyles = StyleSheet.create({
   destBadgeText: {
     fontSize: 11,
     fontWeight: '500',
+  },
+  ownerName: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   editButton: {
     paddingHorizontal: 8,

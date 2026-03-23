@@ -7,9 +7,12 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
+import { Eye, EyeOff, ChevronsUpDown, ChevronsDownUp } from 'lucide-react-native';
 import { useHousehold } from '../_layout';
 import ItemForm from './item-form';
 import { LocationService } from '../../../services/location.service';
+import { HouseholdService } from '../../../services/household.service';
+import { InventoryService } from '../../../services/inventory.service';
 import { Colors } from '../../../constants/colors';
 import { useInventory } from '@/hooks/useInventory';
 import SearchBar from '@/components/inventory/SearchBar';
@@ -25,6 +28,19 @@ import type { Location } from '../../../types/location';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const DESTINATION_FILTER_OPTIONS = ['Todos', 'Manter', 'Vender', 'Doar', 'Descartar'];
+
+const MONTHS_PT = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+
+function formatDatePT(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS_PT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+const DEST_BADGE: Record<string, { label: string; bg: string; text: string }> = {
+  Sell:    { label: 'Vender',    bg: '#dbeafe', text: '#1e40af' },
+  Donate:  { label: 'Doar',      bg: '#ede9fe', text: '#5b21b6' },
+  Discard: { label: 'Descartar', bg: '#fee2e2', text: '#991b1b' },
+};
 
 // ─── Group builder ────────────────────────────────────────────────────────────
 
@@ -69,8 +85,22 @@ function buildGroups(
 
 export default function PertencesTab() {
   const { selectedHousehold } = useHousehold();
-  const { items, locations, loading, error, reloading, loadData, photoUrls } =
+  const { items, locations, loading, error, reloading, loadData, photoUrls, historyItems, loadHistory } =
     useInventory(selectedHousehold);
+
+  // ── Members map (userId → name) ──
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!selectedHousehold) { setMemberNames({}); return; }
+    HouseholdService.getHousehold(selectedHousehold.id)
+      .then((h) => {
+        const map: Record<string, string> = {};
+        (h.householdUsers ?? []).forEach((hu) => { map[hu.userId] = hu.user.name; });
+        setMemberNames(map);
+      })
+      .catch(() => {});
+  }, [selectedHousehold?.id]);
 
   // ── UI state ──
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,6 +124,14 @@ export default function PertencesTab() {
   // Delete location modal
   const [showDeleteLocationConfirm, setShowDeleteLocationConfirm] = useState(false);
   const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
+
+  // Toolbar
+  const [hideEmpty, setHideEmpty] = useState(false);
+
+  // History modal
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Saving / deleting flags
   const [savingLocation, setSavingLocation] = useState(false);
@@ -172,10 +210,52 @@ export default function PertencesTab() {
     }
   }
 
+  // ── History handlers ──
+
+  async function openHistory() {
+    setHistoryError(null);
+    setShowHistoryModal(true);
+    await loadHistory();
+  }
+
+  async function handleRestore(id: string) {
+    setRestoringId(id);
+    try {
+      await InventoryService.restoreItem(id);
+      await loadHistory();
+      loadData(true);
+    } catch {
+      setHistoryError('Erro ao restaurar item.');
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   // ── Derived state ──
 
-  const groups = buildGroups(items, locations, searchQuery, selectedDestination);
+  const enrichedItems = items.map((item) => ({
+    ...item,
+    ownerName: item.ownerId ? memberNames[item.ownerId] : undefined,
+  }));
+  const groups = buildGroups(enrichedItems, locations, searchQuery, selectedDestination);
+
+  // ── Collapse/expand all (depende de groups) ──
+
+  function collapseAll() {
+    setCollapsedLocations(new Set(groups.map((g) => g.locationId ?? '__sem_local__')));
+  }
+
+  function expandAll() {
+    setCollapsedLocations(new Set());
+  }
+
+  const allCollapsed = groups.length > 0 && groups.every((g) =>
+    collapsedLocations.has(g.locationId ?? '__sem_local__')
+  );
   const isEmpty = locations.length === 0 && items.length === 0;
+  const visibleGroups = (hideEmpty || !!searchQuery)
+    ? groups.filter((g) => g.items.length > 0)
+    : groups;
 
   // ── Skeleton ──
   if (loading) {
@@ -217,6 +297,28 @@ export default function PertencesTab() {
           onChange={setSelectedDestination}
         />
 
+        {/* Toolbar: histórico + ocultar vazios + colapsar tudo */}
+        <View style={styles.toolbar}>
+          <TouchableOpacity onPress={openHistory}>
+            <Text style={styles.historyLink}>Histórico ({historyItems.length})</Text>
+          </TouchableOpacity>
+
+          <View style={styles.toolbarIcons}>
+            {!searchQuery && (
+              <TouchableOpacity onPress={() => setHideEmpty((v) => !v)}>
+                {hideEmpty
+                  ? <EyeOff size={20} color={Colors.textSecondary} />
+                  : <Eye size={20} color={Colors.textSecondary} />}
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={allCollapsed ? expandAll : collapseAll}>
+              {allCollapsed
+                ? <ChevronsDownUp size={20} color={Colors.textSecondary} />
+                : <ChevronsUpDown size={20} color={Colors.textSecondary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Empty state */}
         {isEmpty && (
           <View style={styles.emptyState}>
@@ -226,7 +328,7 @@ export default function PertencesTab() {
         )}
 
         {/* Groups */}
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <LocationGroupCard
             key={group.locationId ?? '__none__'}
             group={group}
@@ -345,6 +447,62 @@ export default function PertencesTab() {
         deleting={deletingLocation}
         locationName={locationToDelete?.name ?? ''}
       />
+
+      {/* ── Modal Histórico ── */}
+      <Modal visible={showHistoryModal} transparent animationType="slide">
+        <View style={styles.historyBackdrop}>
+          <View style={styles.historySheet}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Histórico</Text>
+              <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                <Text style={styles.historyClose}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {historyError && (
+              <Text style={styles.historyError}>{historyError}</Text>
+            )}
+
+            <ScrollView contentContainerStyle={styles.historyList}>
+              {historyItems.length === 0 ? (
+                <Text style={styles.historyEmpty}>Nenhum item no histórico.</Text>
+              ) : (
+                historyItems.map((item) => {
+                  const badge = DEST_BADGE[item.destination ?? ''];
+                  return (
+                    <View key={item.id} style={styles.historyItem}>
+                      <View style={styles.historyItemInfo}>
+                        <Text style={styles.historyItemName}>{item.name}</Text>
+                        <View style={styles.historyItemMeta}>
+                          {badge && (
+                            <View style={[styles.destBadge, { backgroundColor: badge.bg }]}>
+                              <Text style={[styles.destBadgeText, { color: badge.text }]}>
+                                {badge.label}
+                              </Text>
+                            </View>
+                          )}
+                          {item.resolvedAt && (
+                            <Text style={styles.historyDate}>{formatDatePT(item.resolvedAt)}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.restoreButton}
+                        onPress={() => handleRestore(item.id)}
+                        disabled={restoringId === item.id}
+                      >
+                        <Text style={styles.restoreButtonText}>
+                          {restoringId === item.id ? '...' : 'Restaurar'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Item form ── */}
       {selectedHousehold && (
@@ -471,6 +629,117 @@ const styles = StyleSheet.create({
   dropdownDivider: {
     height: 1,
     backgroundColor: Colors.border,
+  },
+
+  // Toolbar
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  historyLink: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  toolbarIcons: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+
+  // History modal
+  historyBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  historySheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '75%',
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  historyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  historyClose: {
+    fontSize: 15,
+    color: Colors.primary,
+  },
+  historyError: {
+    fontSize: 13,
+    color: Colors.error,
+    padding: 12,
+    textAlign: 'center',
+  },
+  historyList: {
+    padding: 16,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  historyEmpty: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 24,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  historyItemInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  historyItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  historyItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  destBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  destBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  historyDate: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  restoreButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+  },
+  restoreButtonText: {
+    fontSize: 13,
+    color: '#ffffff',
+    fontWeight: '500',
   },
 
   // FAB

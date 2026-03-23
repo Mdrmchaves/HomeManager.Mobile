@@ -7,10 +7,13 @@ export interface InventoryItem {
   photoUrl?: string;
   locationId?: string;
   locationName?: string;
-  categoryId?: string;
-  categoryName?: string;
   quantity?: number;
   destination?: string;
+  ownerId?: string;
+  /** Resolvido client-side a partir dos membros da casa — não vem da API */
+  ownerName?: string;
+  status?: 'active' | 'resolved';
+  resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,9 +25,9 @@ export interface CreateItemRequest {
   value?: number;
   photoUrl?: string;
   locationId?: string;
-  categoryId?: string;
   quantity?: number;
   destination?: string;
+  ownerId?: string;
 }
 
 export interface UpdateItemRequest {
@@ -33,7 +36,7 @@ export interface UpdateItemRequest {
   value?: number;
   photoUrl?: string;
   locationId?: string;
-  categoryId?: string;
   quantity?: number;
   destination?: string;
+  ownerId?: string;
 }

@@ -14,9 +14,11 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { StorageService } from '../../../services/storage.service';
 import { InventoryService } from '../../../services/inventory.service';
+import { HouseholdService } from '../../../services/household.service';
 import { Colors } from '../../../constants/colors';
 import type { InventoryItem } from '../../../types/inventory-item';
 import type { Location } from '../../../types/location';
+import type { HouseholdUser } from '../../../types/household';
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 
@@ -58,6 +60,10 @@ export default function ItemForm({
   const [value, setValue] = useState('');
   const [description, setDescription] = useState('');
   const [destination, setDestination] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+
+  // Members
+  const [members, setMembers] = useState<HouseholdUser[]>([]);
 
   // Photo
   const [selectedFile, setSelectedFile] = useState<{ uri: string; ext: string } | null>(null);
@@ -71,6 +77,9 @@ export default function ItemForm({
   const [showPhotoActionSheet, setShowPhotoActionSheet] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
+  const [showOwnerPicker, setShowOwnerPicker] = useState(false);
+  const [showResolvePicker, setShowResolvePicker] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState(false);
 
@@ -84,6 +93,11 @@ export default function ItemForm({
     setShowDeleteConfirm(false);
     setSelectedFile(null);
 
+    // Carregar membros da casa
+    HouseholdService.getHousehold(householdId)
+      .then((h) => setMembers(h.householdUsers ?? []))
+      .catch(() => setMembers([]));
+
     if (item) {
       setName(item.name);
       setQuantity(item.quantity != null ? String(item.quantity) : '');
@@ -91,6 +105,7 @@ export default function ItemForm({
       setValue(item.value != null ? String(item.value) : '');
       setDescription(item.description ?? '');
       setDestination(item.destination ?? '');
+      setOwnerId(item.ownerId ?? '');
       setPreviewUri(null);
       if (item.photoUrl) {
         setLoadingPhoto(true);
@@ -106,9 +121,10 @@ export default function ItemForm({
       setValue('');
       setDescription('');
       setDestination('');
+      setOwnerId('');
       setPreviewUri(null);
     }
-  }, [visible, item?.id]);
+  }, [visible, item?.id, householdId]);
 
   // ── Photo handlers ────────────────────────────────────────────────────────
 
@@ -181,6 +197,7 @@ export default function ItemForm({
         value: value ? parseFloat(value.replace(',', '.')) : undefined,
         description: description.trim() || undefined,
         destination: destination || undefined,
+        ownerId: ownerId || undefined,
         photoUrl,
       };
 
@@ -194,6 +211,21 @@ export default function ItemForm({
       setError(err instanceof Error ? err.message : 'Erro ao salvar item.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── Resolve ───────────────────────────────────────────────────────────────
+
+  async function handleResolve(destination: string) {
+    if (!item) return;
+    setResolving(true);
+    setShowResolvePicker(false);
+    try {
+      await InventoryService.resolveItem(item.id, destination);
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao dar saída ao item.');
+      setResolving(false);
     }
   }
 
@@ -219,6 +251,9 @@ export default function ItemForm({
 
   const selectedDestinationLabel =
     DESTINATION_OPTIONS.find((o) => o.value === destination)?.label ?? 'Sem destino';
+
+  const selectedOwnerName =
+    members.find((m) => m.userId === ownerId)?.user.name ?? 'Sem dono';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -367,6 +402,33 @@ export default function ItemForm({
               </TouchableOpacity>
             </View>
 
+            {/* Owner (só visível com mais de 1 membro) */}
+            {members.length > 1 && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Dono</Text>
+                <TouchableOpacity
+                  style={styles.pickerButton}
+                  onPress={() => setShowOwnerPicker(true)}
+                >
+                  <Text style={styles.pickerButtonText}>{selectedOwnerName}</Text>
+                  <Text style={styles.pickerChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Dar saída (edit mode only) */}
+            {isEditing && (
+              <TouchableOpacity
+                style={styles.resolveButton}
+                onPress={() => setShowResolvePicker(true)}
+                disabled={resolving}
+              >
+                <Text style={styles.resolveButtonText}>
+                  {resolving ? 'A processar...' : 'Dar saída do item'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {/* Delete (edit mode only) */}
             {isEditing && (
               <TouchableOpacity
@@ -499,6 +561,86 @@ export default function ItemForm({
               <TouchableOpacity
                 style={styles.pickerOption}
                 onPress={() => setShowDestinationPicker(false)}
+              >
+                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Owner Picker ── */}
+      <Modal visible={showOwnerPicker} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.pickerBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowOwnerPicker(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.pickerCard}>
+              <Text style={styles.pickerTitle}>Dono</Text>
+              {[{ userId: '', user: { id: '', name: 'Sem dono', email: '' }, role: '' }, ...members].map((m, idx, arr) => (
+                <TouchableOpacity
+                  key={m.userId || '__none__'}
+                  style={[
+                    styles.pickerOption,
+                    idx < arr.length - 1 && styles.pickerOptionBorder,
+                  ]}
+                  onPress={() => { setOwnerId(m.userId); setShowOwnerPicker(false); }}
+                >
+                  <Text
+                    style={[
+                      styles.pickerOptionText,
+                      ownerId === m.userId && styles.pickerOptionActive,
+                    ]}
+                  >
+                    {m.user.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <View style={styles.pickerDivider} />
+              <TouchableOpacity
+                style={styles.pickerOption}
+                onPress={() => setShowOwnerPicker(false)}
+              >
+                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Resolve Picker ── */}
+      <Modal visible={showResolvePicker} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.pickerBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowResolvePicker(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.pickerCard}>
+              <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
+              {[
+                { label: 'Vender', value: 'Sell' },
+                { label: 'Doar', value: 'Donate' },
+                { label: 'Descartar', value: 'Discard' },
+              ].map((opt, idx, arr) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.pickerOption, idx < arr.length - 1 && styles.pickerOptionBorder]}
+                  onPress={() => handleResolve(opt.value)}
+                >
+                  <Text style={styles.pickerOptionText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <View style={styles.pickerDivider} />
+              <TouchableOpacity
+                style={styles.pickerOption}
+                onPress={() => setShowResolvePicker(false)}
               >
                 <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
                   Cancelar
@@ -684,6 +826,20 @@ const styles = StyleSheet.create({
   pickerChevron: {
     fontSize: 18,
     color: Colors.textSecondary,
+  },
+
+  // Resolve button
+  resolveButton: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 8,
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+  },
+  resolveButtonText: {
+    fontSize: 15,
+    color: '#92400e',
+    fontWeight: '500',
   },
 
   // Delete button

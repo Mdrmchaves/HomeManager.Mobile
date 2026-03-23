@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Home, Package } from 'lucide-react-native';
 import {
   View,
   Text,
@@ -217,8 +218,8 @@ export default function AppLayout() {
             name="dashboard"
             options={{
               title: 'Início',
-              tabBarIcon: ({ color }) => (
-                <Text style={{ fontSize: 20, color }}>🏠</Text>
+              tabBarIcon: ({ focused, color }) => (
+                <Home size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />
@@ -226,8 +227,8 @@ export default function AppLayout() {
             name="inventory"
             options={{
               title: 'Inventário',
-              tabBarIcon: ({ color }) => (
-                <Text style={{ fontSize: 20, color }}>📦</Text>
+              tabBarIcon: ({ focused, color }) => (
+                <Package size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />

@@ -17,4 +17,15 @@ export const InventoryService = {
     api.put<void>(`/inventory/items/${id}`, request),
 
   deleteItem: (id: string) => api.delete<void>(`/inventory/items/${id}`),
+
+  getResolvedItems: (householdId: string) =>
+    api
+      .get<ApiResponse<InventoryItem[]>>(`/inventory/items?householdId=${householdId}&status=resolved`)
+      .then((r) => r.data),
+
+  resolveItem: (id: string, destination: string) =>
+    api.post<void>(`/inventory/items/${id}/resolve`, { destination }),
+
+  restoreItem: (id: string) =>
+    api.post<void>(`/inventory/items/${id}/restore`, {}),
 };

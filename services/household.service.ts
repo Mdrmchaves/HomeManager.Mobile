@@ -7,7 +7,10 @@ export const HouseholdService = {
   getMyHouseholds: () =>
     api.get<ApiResponse<Household[]>>('/household').then((r) => r.data),
 
-  createHousehold: (name: string) => 
+  getHousehold: (id: string) =>
+    api.get<ApiResponse<Household>>(`/household/${id}`).then((r) => r.data),
+
+  createHousehold: (name: string) =>
    api.post<ApiResponse<Household>>('/household', { name }).then((r) => r.data),
   
   joinHousehold: (inviteCode: string) =>
