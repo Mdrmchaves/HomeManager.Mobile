@@ -145,6 +145,15 @@ function AppHeader({ userEmail }: { userEmail: string }) {
         >
           <View style={[modalStyles.avatarCard, { top: STATUS_BAR_HEIGHT + 62 }]}>
             <TouchableOpacity
+              onPress={() => {
+                setShowAvatarModal(false);
+                router.push('/(app)/profile');
+              }}
+            >
+              <Text style={modalStyles.profileText}>Perfil</Text>
+            </TouchableOpacity>
+            <View style={modalStyles.divider} />
+            <TouchableOpacity
               onPress={async () => {
                 setShowAvatarModal(false);
                 try {
@@ -233,6 +242,7 @@ export default function AppLayout() {
             }}
           />
           <Tabs.Screen name="household-setup" options={{ href: null }} />
+          <Tabs.Screen name="profile" options={{ href: null }} />
         </Tabs>
       </View>
     </HouseholdContext.Provider>
@@ -357,6 +367,12 @@ const modalStyles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 6,
+  },
+  profileText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    paddingVertical: 14,
+    fontWeight: '500',
   },
   signOutText: {
     fontSize: 15,

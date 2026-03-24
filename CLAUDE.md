@@ -54,6 +54,7 @@ HomeManager.Mobile/
 │       ├── _layout.tsx          ← HouseholdContext + header + tab navigator (ícones Lucide)
 │       ├── dashboard.tsx        ← Dashboard (placeholder)
 │       ├── household-setup.tsx  ← Criar / entrar em household
+│       ├── profile.tsx          ← Ecrã de perfil (nome editável, email read-only)
 │       └── inventory/
 │           ├── index.tsx        ← Container com abas Pertences / Despensa
 │           ├── pertences.tsx    ← Lista agrupada por local com toolbar, histórico, ownerName
@@ -81,12 +82,14 @@ HomeManager.Mobile/
 │   ├── storage.service.ts       ← URLs assinadas + upload Supabase Storage
 │   ├── household.service.ts     ← getMyHouseholds, getHousehold, createHousehold, joinHousehold
 │   ├── inventory.service.ts     ← CRUD + resolveItem + restoreItem + getResolvedItems
-│   └── location.service.ts
+│   ├── location.service.ts
+│   └── user.service.ts          ← getMe, updateMe
 └── types/
     ├── api-response.ts
     ├── household.ts             ← Household + HouseholdUser (com user: { id, name, email })
     ├── inventory-item.ts        ← InventoryItem com ownerId, ownerName, status, resolvedAt
-    └── location.ts
+    ├── location.ts
+    └── user.ts                  ← UserProfile
 ```
 
 ## 5. Variáveis de Ambiente
@@ -179,6 +182,8 @@ eas build --platform android --profile preview  # APK para testar
 - constants/destinations.ts — Destination const+type centralizado,
   metadados (label, badge, barColor), opções para picker/filtro/resolve
   (elimina duplicação entre InventoryItemRow, item-form, pertences)
+- Ecrã de Perfil — nome editável, email read-only, avatar com inicial;
+  acessível via "Perfil" no modal do avatar (header); tab oculta com href:null
 
 ### Backlog (por ordem)
 
