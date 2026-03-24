@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
-import { AuthService } from '../services/auth.service';
+import { AuthService, supabase } from '../services/auth.service';
 import { HouseholdService } from '../services/household.service';
 
 export default function RootLayout() {
@@ -35,6 +36,11 @@ export default function RootLayout() {
       }
     });
 
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    });
+
     const { data: listener } = AuthService.onAuthStateChange(async (event, newSession) => {
       // Token refresh falhou — forçar logout limpo
       if (event === 'TOKEN_REFRESHED' && !newSession) {
@@ -61,6 +67,7 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
       listener.subscription.unsubscribe();
+      appStateSubscription.remove();
     };
   }, []);
 
