@@ -1,40 +1,10 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { Colors } from '@/constants/colors';
+import { getDestinationMeta, getDestinationLabel, DEFAULT_BAR_COLOR } from '@/constants/destinations';
 import type { InventoryItem } from '@/types/inventory-item';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const DESTINATION_MAP: Record<string, string> = {
-  Keep: 'Manter',
-  Sell: 'Vender',
-  Donate: 'Doar',
-  Trash: 'Descartar',
-};
-
-const DESTINATION_BADGE_STYLES: Record<string, { bg: string; text: string }> = {
-  Manter: { bg: '#d1fae5', text: '#065f46' },
-  Vender: { bg: '#dbeafe', text: '#1e40af' },
-  Doar: { bg: '#ede9fe', text: '#5b21b6' },
-  Descartar: { bg: '#fee2e2', text: '#991b1b' },
-};
-
-const DESTINATION_BAR_COLORS: Record<string, string> = {
-  Keep: '#059669',
-  Sell: '#2563eb',
-  Donate: '#7c3aed',
-  Trash: '#dc2626',
-};
-
-export function getDestinationLabel(destination?: string): string | null {
-  if (!destination || destination === 'Undecided') return null;
-  return DESTINATION_MAP[destination] ?? null;
-}
-
-export function getDestinationBarColor(destination?: string): string {
-  if (!destination || destination === 'Undecided') return '#d1d5db';
-  return DESTINATION_BAR_COLORS[destination] ?? '#d1d5db';
-}
+export { getDestinationLabel };
 
 // ─── InventoryItemRow ─────────────────────────────────────────────────────────
 
@@ -46,10 +16,9 @@ type Props = {
 };
 
 export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Props) {
-  const destLabel = getDestinationLabel(item.destination);
-  const destBadgeStyle = destLabel ? DESTINATION_BADGE_STYLES[destLabel] : null;
+  const destMeta = getDestinationMeta(item.destination);
   const signedUrl = item.photoUrl ? photoUrls[item.photoUrl] : null;
-  const barColor = getDestinationBarColor(item.destination);
+  const barColor = destMeta?.barColor ?? DEFAULT_BAR_COLOR;
 
   return (
     <View style={[itemStyles.row, !isLast && itemStyles.rowBorder]}>
@@ -80,11 +49,11 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Pr
           )}
         </Text>
 
-        {destLabel && destBadgeStyle && (
+        {destMeta && (
           <View style={itemStyles.badges}>
-            <View style={[itemStyles.destBadge, { backgroundColor: destBadgeStyle.bg }]}>
-              <Text style={[itemStyles.destBadgeText, { color: destBadgeStyle.text }]}>
-                {destLabel}
+            <View style={[itemStyles.destBadge, { backgroundColor: destMeta.badge.bg }]}>
+              <Text style={[itemStyles.destBadgeText, { color: destMeta.badge.text }]}>
+                {destMeta.label}
               </Text>
             </View>
           </View>

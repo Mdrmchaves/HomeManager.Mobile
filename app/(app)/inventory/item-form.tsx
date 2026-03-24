@@ -16,6 +16,7 @@ import { StorageService } from '../../../services/storage.service';
 import { InventoryService } from '../../../services/inventory.service';
 import { HouseholdService } from '../../../services/household.service';
 import { Colors } from '../../../constants/colors';
+import { DESTINATION_ALL_OPTIONS, DESTINATION_RESOLVE_OPTIONS } from '../../../constants/destinations';
 import type { InventoryItem } from '../../../types/inventory-item';
 import type { Location } from '../../../types/location';
 import type { HouseholdUser } from '../../../types/household';
@@ -31,14 +32,6 @@ export interface ItemFormProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const DESTINATION_OPTIONS = [
-  { label: 'Sem destino', value: '' },
-  { label: 'Manter', value: 'Keep' },
-  { label: 'Vender', value: 'Sell' },
-  { label: 'Doar', value: 'Donate' },
-  { label: 'Descartar', value: 'Trash' },
-];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -250,7 +243,7 @@ export default function ItemForm({
     locations.find((l) => l.id === locationId)?.name ?? 'Sem local';
 
   const selectedDestinationLabel =
-    DESTINATION_OPTIONS.find((o) => o.value === destination)?.label ?? 'Sem destino';
+    DESTINATION_ALL_OPTIONS.find((o) => o.value === destination)?.label ?? 'Sem destino';
 
   const selectedOwnerName =
     members.find((m) => m.userId === ownerId)?.user.name ?? 'Sem dono';
@@ -538,7 +531,7 @@ export default function ItemForm({
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
             <View style={styles.pickerCard}>
               <Text style={styles.pickerTitle}>Destino</Text>
-              {DESTINATION_OPTIONS.map((opt, idx, arr) => (
+              {DESTINATION_ALL_OPTIONS.map((opt, idx, arr) => (
                 <TouchableOpacity
                   key={opt.value || '__none__'}
                   style={[
@@ -624,19 +617,24 @@ export default function ItemForm({
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
             <View style={styles.pickerCard}>
               <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
-              {[
-                { label: 'Vender', value: 'Sell' },
-                { label: 'Doar', value: 'Donate' },
-                { label: 'Descartar', value: 'Discard' },
-              ].map((opt, idx, arr) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[styles.pickerOption, idx < arr.length - 1 && styles.pickerOptionBorder]}
-                  onPress={() => handleResolve(opt.value)}
-                >
-                  <Text style={styles.pickerOptionText}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
+              {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => {
+                const isPreselected = destination === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.pickerOption,
+                      idx < arr.length - 1 && styles.pickerOptionBorder,
+                      ]}
+                    onPress={() => handleResolve(opt.value)}
+                  >
+                    <View style={styles.resolveOptionRow}>
+                      <Text style={styles.pickerOptionText}>{opt.label}</Text>
+                      {isPreselected && <Text style={{ color: opt.badge.text, fontSize: 16, marginRight: 8 }}>✓</Text>}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
               <View style={styles.pickerDivider} />
               <TouchableOpacity
                 style={styles.pickerOption}
@@ -826,6 +824,13 @@ const styles = StyleSheet.create({
   pickerChevron: {
     fontSize: 18,
     color: Colors.textSecondary,
+  },
+
+  // Resolve picker row
+  resolveOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   // Resolve button

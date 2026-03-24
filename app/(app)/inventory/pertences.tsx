@@ -14,11 +14,11 @@ import { LocationService } from '../../../services/location.service';
 import { HouseholdService } from '../../../services/household.service';
 import { InventoryService } from '../../../services/inventory.service';
 import { Colors } from '../../../constants/colors';
+import { DESTINATION_FILTER_OPTIONS, getDestinationMeta, getDestinationLabel } from '../../../constants/destinations';
 import { useInventory } from '@/hooks/useInventory';
 import SearchBar from '@/components/inventory/SearchBar';
 import DestinationFilter from '@/components/inventory/DestinationFilter';
 import LocationGroupCard, { type Group } from '@/components/inventory/LocationGroupCard';
-import { getDestinationLabel } from '@/components/inventory/InventoryItemRow';
 import AddLocationModal from '@/components/inventory/modals/AddLocationModal';
 import EditLocationModal from '@/components/inventory/modals/EditLocationModal';
 import DeleteLocationConfirmModal from '@/components/inventory/modals/DeleteLocationConfirmModal';
@@ -27,20 +27,12 @@ import type { Location } from '../../../types/location';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DESTINATION_FILTER_OPTIONS = ['Todos', 'Manter', 'Vender', 'Doar', 'Descartar'];
-
 const MONTHS_PT = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
 
 function formatDatePT(iso: string): string {
   const d = new Date(iso);
   return `${d.getDate()} ${MONTHS_PT[d.getMonth()]} ${d.getFullYear()}`;
 }
-
-const DEST_BADGE: Record<string, { label: string; bg: string; text: string }> = {
-  Sell:    { label: 'Vender',    bg: '#dbeafe', text: '#1e40af' },
-  Donate:  { label: 'Doar',      bg: '#ede9fe', text: '#5b21b6' },
-  Discard: { label: 'Descartar', bg: '#fee2e2', text: '#991b1b' },
-};
 
 // ─── Group builder ────────────────────────────────────────────────────────────
 
@@ -108,7 +100,7 @@ export default function PertencesTab() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
   const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>(undefined);
-  const [collapsedLocations, setCollapsedLocations] = useState<Set<string>>(new Set());
+  const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set());
 
   // Location menu
   const [activeLocationMenu, setActiveLocationMenu] = useState<string | null>(null);
@@ -126,7 +118,7 @@ export default function PertencesTab() {
   const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
 
   // Toolbar
-  const [hideEmpty, setHideEmpty] = useState(false);
+  const [hideEmpty, setHideEmpty] = useState(true);
 
   // History modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -145,7 +137,7 @@ export default function PertencesTab() {
 
   function toggleLocation(locationId: string | null) {
     const key = locationId ?? '__sem_local__';
-    setCollapsedLocations((prev) => {
+    setExpandedLocations((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
@@ -153,7 +145,7 @@ export default function PertencesTab() {
   }
 
   function isCollapsed(locationId: string | null) {
-    return collapsedLocations.has(locationId ?? '__sem_local__');
+    return !expandedLocations.has(locationId ?? '__sem_local__');
   }
 
   // ── CRUD handlers ──
@@ -242,16 +234,14 @@ export default function PertencesTab() {
   // ── Collapse/expand all (depende de groups) ──
 
   function collapseAll() {
-    setCollapsedLocations(new Set(groups.map((g) => g.locationId ?? '__sem_local__')));
+    setExpandedLocations(new Set());
   }
 
   function expandAll() {
-    setCollapsedLocations(new Set());
+    setExpandedLocations(new Set(groups.map((g) => g.locationId ?? '__sem_local__')));
   }
 
-  const allCollapsed = groups.length > 0 && groups.every((g) =>
-    collapsedLocations.has(g.locationId ?? '__sem_local__')
-  );
+  const allCollapsed = groups.length > 0 && expandedLocations.size === 0;
   const isEmpty = locations.length === 0 && items.length === 0;
   const visibleGroups = (hideEmpty || !!searchQuery)
     ? groups.filter((g) => g.items.length > 0)
@@ -468,15 +458,15 @@ export default function PertencesTab() {
                 <Text style={styles.historyEmpty}>Nenhum item no histórico.</Text>
               ) : (
                 historyItems.map((item) => {
-                  const badge = DEST_BADGE[item.destination ?? ''];
+                  const badge = getDestinationMeta(item.destination);
                   return (
                     <View key={item.id} style={styles.historyItem}>
                       <View style={styles.historyItemInfo}>
                         <Text style={styles.historyItemName}>{item.name}</Text>
                         <View style={styles.historyItemMeta}>
                           {badge && (
-                            <View style={[styles.destBadge, { backgroundColor: badge.bg }]}>
-                              <Text style={[styles.destBadgeText, { color: badge.text }]}>
+                            <View style={[styles.destBadge, { backgroundColor: badge.badge.bg }]}>
+                              <Text style={[styles.destBadgeText, { color: badge.badge.text }]}>
                                 {badge.label}
                               </Text>
                             </View>
