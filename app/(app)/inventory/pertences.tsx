@@ -128,6 +128,7 @@ export default function PertencesTab() {
   // Saving / deleting flags
   const [savingLocation, setSavingLocation] = useState(false);
   const [deletingLocation, setDeletingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedDestination('Todos');
@@ -161,8 +162,8 @@ export default function PertencesTab() {
       );
       setShowNewLocationModal(false);
       loadData(true);
-    } catch {
-      // erro silencioso por agora
+    } catch (err: unknown) {
+      setLocationError(err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.');
     } finally {
       setSavingLocation(false);
     }
@@ -180,8 +181,8 @@ export default function PertencesTab() {
       setShowEditLocationModal(false);
       setEditingLocation(null);
       loadData(true);
-    } catch {
-      // erro silencioso por agora
+    } catch (err: unknown) {
+      setLocationError(err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.');
     } finally {
       setSavingLocation(false);
     }
@@ -195,8 +196,8 @@ export default function PertencesTab() {
       setShowDeleteLocationConfirm(false);
       setLocationToDelete(null);
       loadData(true);
-    } catch {
-      // erro silencioso por agora
+    } catch (err: unknown) {
+      setLocationError(err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.');
     } finally {
       setDeletingLocation(false);
     }
@@ -345,7 +346,7 @@ export default function PertencesTab() {
         {/* Adicionar local */}
         <TouchableOpacity
           style={styles.addLocationButton}
-          onPress={() => setShowNewLocationModal(true)}
+          onPress={() => { setLocationError(null); setShowNewLocationModal(true); }}
         >
           <Text style={styles.addLocationButtonText}>+ Adicionar local</Text>
         </TouchableOpacity>
@@ -371,6 +372,7 @@ export default function PertencesTab() {
                   const group = groups.find((g) => g.locationId === activeLocationMenu);
                   if (!group?.location) return;
                   setEditingLocation(group.location);
+                  setLocationError(null);
                   setShowEditLocationModal(true);
                   setActiveLocationMenu(null);
                   setMenuPosition(null);
@@ -385,6 +387,7 @@ export default function PertencesTab() {
                   const group = groups.find((g) => g.locationId === activeLocationMenu);
                   if (!group?.location) return;
                   setLocationToDelete(group.location);
+                  setLocationError(null);
                   setShowDeleteLocationConfirm(true);
                   setActiveLocationMenu(null);
                   setMenuPosition(null);
@@ -417,6 +420,7 @@ export default function PertencesTab() {
         onClose={() => setShowNewLocationModal(false)}
         onConfirm={createLocation}
         saving={savingLocation}
+        error={locationError}
       />
 
       {/* ── Editar local modal ── */}
@@ -427,6 +431,7 @@ export default function PertencesTab() {
         saving={savingLocation}
         initialName={editingLocation?.name ?? ''}
         initialIcon={editingLocation?.icon ?? ''}
+        error={locationError}
       />
 
       {/* ── Confirmar exclusão de local ── */}
@@ -436,6 +441,7 @@ export default function PertencesTab() {
         onConfirm={deleteLocation}
         deleting={deletingLocation}
         locationName={locationToDelete?.name ?? ''}
+        error={locationError}
       />
 
       {/* ── Modal Histórico ── */}

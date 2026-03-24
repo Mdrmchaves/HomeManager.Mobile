@@ -17,9 +17,10 @@ type Props = {
   onClose: () => void;
   onConfirm: (name: string, icon: string) => void;
   saving: boolean;
+  error?: string | null;
 };
 
-export default function AddLocationModal({ visible, onClose, onConfirm, saving }: Props) {
+export default function AddLocationModal({ visible, onClose, onConfirm, saving, error }: Props) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
 
@@ -63,6 +64,7 @@ export default function AddLocationModal({ visible, onClose, onConfirm, saving }
               onChangeText={setIcon}
             />
 
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -151,5 +153,10 @@ const styles = StyleSheet.create({
   },
   modalBtnDisabled: {
     opacity: 0.5,
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.error,
+    textAlign: 'center',
   },
 });

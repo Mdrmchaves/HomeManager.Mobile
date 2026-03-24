@@ -9,6 +9,7 @@ type Props = {
   onConfirm: () => void;
   deleting: boolean;
   locationName: string;
+  error?: string | null;
 };
 
 export default function DeleteLocationConfirmModal({
@@ -17,6 +18,7 @@ export default function DeleteLocationConfirmModal({
   onConfirm,
   deleting,
   locationName: _locationName,
+  error,
 }: Props) {
   return (
     <Modal
@@ -32,6 +34,7 @@ export default function DeleteLocationConfirmModal({
           <Text style={styles.confirmBody}>
             Os itens associados ficarão sem local. Esta ação não pode ser desfeita.
           </Text>
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
           <View style={styles.confirmButtons}>
             <TouchableOpacity
               style={[styles.confirmBtn, styles.confirmBtnCancel]}
@@ -116,5 +119,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#ffffff',
     fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.error,
+    textAlign: 'center',
+    marginBottom: 12,
   },
 });

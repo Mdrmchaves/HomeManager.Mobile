@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { InventoryService } from '@/services/inventory.service';
 import { LocationService } from '@/services/location.service';
 import { StorageService } from '@/services/storage.service';
@@ -16,9 +16,11 @@ export function useInventory(selectedHousehold: Household | null) {
   const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<InventoryItem[]>([]);
+  const lastHouseholdId = useRef<string | null>(null);
 
   async function loadData(isReload = false) {
     if (!selectedHousehold) return;
+    lastHouseholdId.current = selectedHousehold.id;
     if (isReload) setReloading(true);
     else setLoading(true);
     setError(null);
@@ -48,8 +50,15 @@ export function useInventory(selectedHousehold: Household | null) {
   }
 
   useEffect(() => {
-    const isFirstLoad = items.length === 0 && !error;
-    loadData(!isFirstLoad);
+    if (selectedHousehold?.id !== lastHouseholdId.current) {
+      setItems([]);
+      setLocations([]);
+      setHistoryItems([]);
+      setPhotoUrls({});
+      loadData(false);
+    } else {
+      loadData(true);
+    }
   }, [selectedHousehold?.id]);
 
   async function loadHistory() {

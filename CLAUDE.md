@@ -189,13 +189,8 @@ eas build --platform android --profile preview  # APK para testar
    no estado intermédio (? no avatar) sem redirect para login. A migração
    para AsyncStorage reduz a probabilidade mas não elimina o problema de
    timing no `router.replace`. A confirmar se persiste após a migração.
-4. **Fix: dados stale ao trocar de household** — `useInventory` não limpa
-   `items`/`locations` ao mudar de household, causando flash de dados antigos
-5. **Swipe down para fechar item-form** — PanResponder no handleBar com
+4. **Swipe down para fechar item-form** — PanResponder no handleBar com
    threshold 80px; requer mudar Modal para `transparent={true}` + backdrop,
    removendo `presentationStyle="pageSheet"`
-6. **Erros CRUD de locais ainda silenciosos** — os catch blocks de
-   `createLocation`, `saveEditLocation`, `deleteLocation` em `pertences.tsx`
-   têm `// erro silencioso por agora`
-7. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
+5. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
    as env vars têm de ser registadas como secrets no EAS Cloud

@@ -19,6 +19,7 @@ type Props = {
   saving: boolean;
   initialName: string;
   initialIcon: string;
+  error?: string | null;
 };
 
 export default function EditLocationModal({
@@ -28,6 +29,7 @@ export default function EditLocationModal({
   saving,
   initialName,
   initialIcon,
+  error,
 }: Props) {
   const [name, setName] = useState(initialName);
   const [icon, setIcon] = useState(initialIcon);
@@ -71,6 +73,7 @@ export default function EditLocationModal({
               onChangeText={setIcon}
             />
 
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -159,5 +162,10 @@ const styles = StyleSheet.create({
   },
   modalBtnDisabled: {
     opacity: 0.5,
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.error,
+    textAlign: 'center',
   },
 });
