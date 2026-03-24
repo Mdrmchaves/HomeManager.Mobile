@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-24
+> Última actualização: 2026-03-24 (refactor auth declarativo)
 
 ## 1. Visão Geral
 
@@ -46,7 +46,7 @@ Consome a mesma API .NET 10. Autenticação via Supabase (JWT partilhado com o w
 ```
 HomeManager.Mobile/
 ├── app/
-│   ├── _layout.tsx              ← Layout raiz — auth redirect + household check + AppState listener
+│   ├── _layout.tsx              ← Layout raiz — monta AuthProvider + AuthGuard + Slot. Zero lógica de navegação.
 │   ├── (auth)/
 │   │   ├── _layout.tsx          ← Stack sem header
 │   │   └── login.tsx            ← Login + Registo + confirmação email
@@ -61,6 +61,7 @@ HomeManager.Mobile/
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
+│   ├── AuthGuard.tsx            ← redirect declarativo (<Redirect>) baseado no AuthContext
 │   └── inventory/
 │       ├── SearchBar.tsx
 │       ├── DestinationFilter.tsx
@@ -70,6 +71,8 @@ HomeManager.Mobile/
 │           ├── AddLocationModal.tsx
 │           ├── EditLocationModal.tsx
 │           └── DeleteLocationConfirmModal.tsx
+├── contexts/
+│   └── AuthContext.tsx          ← AuthProvider + useAuth hook (estado puro, zero navegação)
 ├── constants/
 │   ├── colors.ts
 │   ├── config.ts
@@ -128,6 +131,7 @@ eas build --platform android --profile preview  # APK para testar
 | SecureStore com chunks corrompida em background | Escritas não atómicas quando iOS suspende o app a meio do refresh token | Migrado para `AsyncStorage` (atómico, sem limite de tamanho) + `AppState` listener para `stopAutoRefresh` em background |
 | `supabase.auth.signOut()` bloqueia indefinidamente | `refreshSession()` no boot mantém o lock interno do Supabase | Não chamar `refreshSession()` no boot — usar apenas `getSession()` |
 | lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
+| Sessão expirada deixava app em estado intermédio sem redirect para login | `onAuthStateChange` + `useEffect` com múltiplas dependências criavam condição de corrida | Refatorado para `AuthProvider` (estado puro) + `AuthGuard` (`<Redirect>` declarativo) — sem `router.replace` em efeitos |
 
 ## 9. Diferenças vs Web (Angular)
 
@@ -189,13 +193,8 @@ eas build --platform android --profile preview  # APK para testar
 
 1. **Dashboard** — ecrã ainda placeholder
 2. **Despensa** — aba ainda placeholder
-3. **Fix: sessão expirada não redireciona para login** — quando o token
-   expira com o app em background por tempo prolongado (>1h), o app fica
-   no estado intermédio (? no avatar) sem redirect para login. A migração
-   para AsyncStorage reduz a probabilidade mas não elimina o problema de
-   timing no `router.replace`. A confirmar se persiste após a migração.
-4. **Swipe down para fechar item-form** — PanResponder no handleBar com
+3. **Swipe down para fechar item-form** — PanResponder no handleBar com
    threshold 80px; requer mudar Modal para `transparent={true}` + backdrop,
    removendo `presentationStyle="pageSheet"`
-5. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
+4. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
    as env vars têm de ser registadas como secrets no EAS Cloud

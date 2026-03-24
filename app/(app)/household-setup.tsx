@@ -9,14 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { HouseholdService } from '../../services/household.service';
 import { Colors } from '../../constants/colors';
+import { useAuth } from '../../contexts/AuthContext';
 
 type Mode = 'create' | 'join';
 
 export default function HouseholdSetupScreen() {
-  const router = useRouter();
+  const { refreshHouseholds } = useAuth();
   const [mode, setMode] = useState<Mode>('create');
 
   const [householdName, setHouseholdName] = useState('');
@@ -53,7 +53,7 @@ export default function HouseholdSetupScreen() {
       } else {
         await HouseholdService.joinHousehold(inviteCode.trim());
       }
-      router.back();
+      await refreshHouseholds();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.';
       setError(message);
