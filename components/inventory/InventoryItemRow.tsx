@@ -1,7 +1,10 @@
+import { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { Colors } from '@/constants/colors';
 import { getDestinationMeta, getDestinationLabel, DEFAULT_BAR_COLOR } from '@/constants/destinations';
+import { useItemMenu } from '@/contexts/ItemMenuContext';
+import type { MenuAction } from '@/contexts/ItemMenuContext';
 import type { InventoryItem } from '@/types/inventory-item';
 
 export { getDestinationLabel };
@@ -13,64 +16,76 @@ type Props = {
   isLast: boolean;
   photoUrls: Record<string, string>;
   onEdit: () => void;
-  onLongPress: () => void;
+  menuActions: MenuAction[];
 };
 
-export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, onLongPress }: Props) {
+export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menuActions }: Props) {
+  const { openMenu } = useItemMenu();
+  const rowRef = useRef<View>(null);
   const destMeta = getDestinationMeta(item.destination);
   const signedUrl = item.photoUrl ? photoUrls[item.photoUrl] : null;
   const barColor = destMeta?.barColor ?? DEFAULT_BAR_COLOR;
 
   return (
-    <TouchableOpacity
-      style={[itemStyles.row, !isLast && itemStyles.rowBorder]}
-      onPress={onEdit}
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      activeOpacity={0.7}
-    >
-      {/* Colored left bar */}
-      <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
+    <View ref={rowRef}>
+      <TouchableOpacity
+        style={[itemStyles.row, !isLast && itemStyles.rowBorder]}
+        onPress={onEdit}
+        delayLongPress={400}
+        onLongPress={() => {
+          rowRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
+            openMenu(
+              { id: item.id, name: item.name },
+              { top: pageY + _h, left: pageX, width: _w },
+              menuActions
+            );
+          });
+        }}
+        activeOpacity={0.7}
+      >
+        {/* Colored left bar */}
+        <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
 
-      {/* Photo */}
-      {signedUrl ? (
-        <Image
-          source={{ uri: signedUrl }}
-          style={itemStyles.photo}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          placeholder={null}
-        />
-      ) : (
-        <View style={itemStyles.photoPlaceholder}>
-          <Text style={itemStyles.photoEmoji}>📦</Text>
-        </View>
-      )}
-
-      {/* Info */}
-      <View style={itemStyles.info}>
-        <Text style={itemStyles.name} numberOfLines={1}>
-          {item.name}
-          {item.quantity != null && item.quantity > 1 && (
-            <Text style={itemStyles.qty}> ×{item.quantity}</Text>
-          )}
-        </Text>
-
-        {destMeta && (
-          <View style={itemStyles.badges}>
-            <View style={[itemStyles.destBadge, { backgroundColor: destMeta.badge.bg }]}>
-              <Text style={[itemStyles.destBadgeText, { color: destMeta.badge.text }]}>
-                {destMeta.label}
-              </Text>
-            </View>
+        {/* Photo */}
+        {signedUrl ? (
+          <Image
+            source={{ uri: signedUrl }}
+            style={itemStyles.photo}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            placeholder={null}
+          />
+        ) : (
+          <View style={itemStyles.photoPlaceholder}>
+            <Text style={itemStyles.photoEmoji}>📦</Text>
           </View>
         )}
 
-        {item.ownerName && (
-          <Text style={itemStyles.ownerName}>👤 {item.ownerName}</Text>
-        )}
-      </View>
-    </TouchableOpacity>
+        {/* Info */}
+        <View style={itemStyles.info}>
+          <Text style={itemStyles.name} numberOfLines={1}>
+            {item.name}
+            {item.quantity != null && item.quantity > 1 && (
+              <Text style={itemStyles.qty}> ×{item.quantity}</Text>
+            )}
+          </Text>
+
+          {destMeta && (
+            <View style={itemStyles.badges}>
+              <View style={[itemStyles.destBadge, { backgroundColor: destMeta.badge.bg }]}>
+                <Text style={[itemStyles.destBadgeText, { color: destMeta.badge.text }]}>
+                  {destMeta.label}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {item.ownerName && (
+            <Text style={itemStyles.ownerName}>👤 {item.ownerName}</Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 }
 

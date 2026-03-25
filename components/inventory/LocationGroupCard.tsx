@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '@/constants/colors';
 import InventoryItemRow from '@/components/inventory/InventoryItemRow';
+import type { MenuAction } from '@/contexts/ItemMenuContext';
 import type { InventoryItem } from '@/types/inventory-item';
 import type { Location } from '@/types/location';
 
@@ -23,7 +24,7 @@ type Props = {
   photoUrls: Record<string, string>;
   onToggle: () => void;
   onEditItem: (item: InventoryItem) => void;
-  onItemLongPress: (item: InventoryItem) => void;
+  menuActionsForItem: (item: InventoryItem) => MenuAction[];
   onAddItem: () => void;
   onOpenMenu: (top: number) => void;
 };
@@ -34,7 +35,7 @@ export default function LocationGroupCard({
   photoUrls,
   onToggle,
   onEditItem,
-  onItemLongPress,
+  menuActionsForItem,
   onAddItem,
   onOpenMenu,
 }: Props) {
@@ -91,7 +92,7 @@ export default function LocationGroupCard({
                 isLast={idx === group.items.length - 1}
                 photoUrls={photoUrls}
                 onEdit={() => onEditItem(item)}
-                onLongPress={() => onItemLongPress(item)}
+                menuActions={menuActionsForItem(item)}
               />
             ))}
 

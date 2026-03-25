@@ -22,6 +22,8 @@ import LocationGroupCard, { type Group } from '@/components/inventory/LocationGr
 import AddLocationModal from '@/components/inventory/modals/AddLocationModal';
 import EditLocationModal from '@/components/inventory/modals/EditLocationModal';
 import DeleteLocationConfirmModal from '@/components/inventory/modals/DeleteLocationConfirmModal';
+import ItemMenuProvider from '@/components/ItemMenuProvider';
+import type { MenuAction } from '@/contexts/ItemMenuContext';
 import type { InventoryItem } from '../../../types/inventory-item';
 import type { Location } from '../../../types/location';
 
@@ -125,13 +127,13 @@ export default function PertencesTab() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  // Item context menu
-  const [menuItem, setMenuItem] = useState<InventoryItem | null>(null);
-  const [showItemMenu, setShowItemMenu] = useState(false);
-  const [deletingMenuItemId, setDeletingMenuItemId] = useState<string | null>(null);
-  const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
+  // Item action state (resolve + delete)
+  const [resolveTargetItem, setResolveTargetItem] = useState<InventoryItem | null>(null);
   const [showItemResolvePicker, setShowItemResolvePicker] = useState(false);
-  const [itemMenuError, setItemMenuError] = useState<string | null>(null);
+  const [deleteTargetItem, setDeleteTargetItem] = useState<InventoryItem | null>(null);
+  const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [menuActionError, setMenuActionError] = useState<string | null>(null);
 
   // Saving / deleting flags
   const [savingLocation, setSavingLocation] = useState(false);
@@ -232,38 +234,66 @@ export default function PertencesTab() {
     }
   }
 
-  // ── Item long-press menu ──
+  // ── Item action handlers ──
 
-  function onItemLongPress(item: InventoryItem) {
-    setMenuItem(item);
-    setItemMenuError(null);
-    setShowItemMenu(true);
-  }
-
-  async function handleMenuResolve(destination: string) {
-    if (!menuItem) return;
+  async function handleResolveItem(destination: string) {
+    if (!resolveTargetItem) return;
     setShowItemResolvePicker(false);
     try {
-      await InventoryService.resolveItem(menuItem.id, destination);
+      await InventoryService.resolveItem(resolveTargetItem.id, destination);
       loadData(true);
     } catch {
-      setItemMenuError('Erro ao dar saída ao item.');
+      setMenuActionError('Erro ao dar saída ao item.');
+    } finally {
+      setResolveTargetItem(null);
     }
   }
 
-  async function handleMenuDelete() {
-    if (!menuItem) return;
+  async function handleDeleteItem() {
+    if (!deleteTargetItem) return;
     setShowItemDeleteConfirm(false);
-    setDeletingMenuItemId(menuItem.id);
+    setDeletingItemId(deleteTargetItem.id);
     try {
-      await InventoryService.deleteItem(menuItem.id);
+      await InventoryService.deleteItem(deleteTargetItem.id);
       loadData(true);
     } catch {
-      setItemMenuError('Erro ao apagar item.');
+      setMenuActionError('Erro ao apagar item.');
     } finally {
-      setDeletingMenuItemId(null);
-      setMenuItem(null);
+      setDeletingItemId(null);
+      setDeleteTargetItem(null);
     }
+  }
+
+  // ── Menu actions factory ──
+
+  function menuActionsForItem(item: InventoryItem): MenuAction[] {
+    return [
+      {
+        label: 'Editar',
+        onPress: () => {
+          setEditingItem(item);
+          setPreselectedLocationId(undefined);
+          setShowItemForm(true);
+        },
+      },
+      {
+        label: 'Dar saída',
+        onPress: () => {
+          setResolveTargetItem(item);
+          setMenuActionError(null);
+          setShowItemResolvePicker(true);
+        },
+      },
+      {
+        label: 'Eliminar',
+        destructive: true,
+        onPress: () => {
+          setDeleteTargetItem(item);
+          setMenuActionError(null);
+          setShowItemDeleteConfirm(true);
+        },
+      },
+    ];
   }
 
   // ── Derived state ──
@@ -314,382 +344,336 @@ export default function PertencesTab() {
   }
 
   return (
-    <View style={styles.root}>
-      <ScrollView
-        style={[styles.scroll, reloading && styles.scrollReloading]}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Search bar */}
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+    <ItemMenuProvider>
+      <View style={styles.root}>
+        <ScrollView
+          style={[styles.scroll, reloading && styles.scrollReloading]}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Search bar */}
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
-        {/* Destination filters */}
-        <DestinationFilter
-          selected={selectedDestination}
-          options={DESTINATION_FILTER_OPTIONS}
-          onChange={setSelectedDestination}
-        />
-
-        {/* Toolbar: histórico + ocultar vazios + colapsar tudo */}
-        <View style={styles.toolbar}>
-          <TouchableOpacity onPress={openHistory}>
-            <Text style={styles.historyLink}>Histórico ({historyItems.length})</Text>
-          </TouchableOpacity>
-
-          <View style={styles.toolbarIcons}>
-            {!searchQuery && (
-              <TouchableOpacity onPress={() => setHideEmpty((v) => !v)}>
-                {hideEmpty
-                  ? <EyeOff size={20} color={Colors.textSecondary} />
-                  : <Eye size={20} color={Colors.textSecondary} />}
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={allCollapsed ? expandAll : collapseAll}>
-              {allCollapsed
-                ? <ChevronsDownUp size={20} color={Colors.textSecondary} />
-                : <ChevronsUpDown size={20} color={Colors.textSecondary} />}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Empty state */}
-        {isEmpty && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyText}>Nenhum item encontrado</Text>
-          </View>
-        )}
-
-        {/* Groups */}
-        {visibleGroups.map((group) => (
-          <LocationGroupCard
-            key={group.locationId ?? '__none__'}
-            group={group}
-            collapsed={isCollapsed(group.locationId)}
-            photoUrls={photoUrls}
-            onToggle={() => toggleLocation(group.locationId)}
-            onEditItem={(item: InventoryItem) => {
-              setEditingItem(item);
-              setPreselectedLocationId(undefined);
-              setShowItemForm(true);
-            }}
-            onItemLongPress={onItemLongPress}
-            onAddItem={() => {
-              setEditingItem(undefined);
-              setPreselectedLocationId(group.locationId ?? undefined);
-              setShowItemForm(true);
-            }}
-            onOpenMenu={(top: number) => {
-              setActiveLocationMenu(group.locationId);
-              setMenuPosition({ top, right: 16 });
-            }}
+          {/* Destination filters */}
+          <DestinationFilter
+            selected={selectedDestination}
+            options={DESTINATION_FILTER_OPTIONS}
+            onChange={setSelectedDestination}
           />
-        ))}
 
-        {/* Adicionar local */}
-        <TouchableOpacity
-          style={styles.addLocationButton}
-          onPress={() => { setLocationError(null); setShowNewLocationModal(true); }}
-        >
-          <Text style={styles.addLocationButtonText}>+ Adicionar local</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Toolbar: histórico + ocultar vazios + colapsar tudo */}
+          <View style={styles.toolbar}>
+            <TouchableOpacity onPress={openHistory}>
+              <Text style={styles.historyLink}>Histórico ({historyItems.length})</Text>
+            </TouchableOpacity>
 
-      {/* Dropdown menu — Modal para garantir zIndex acima de tudo */}
-      <Modal
-        visible={activeLocationMenu !== null}
-        transparent
-        animationType="none"
-        onRequestClose={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
-        >
-          {menuPosition && (
-            <View style={[styles.dropdownMenu, { top: menuPosition.top, right: menuPosition.right }]}>
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  const group = groups.find((g) => g.locationId === activeLocationMenu);
-                  if (!group?.location) return;
-                  setEditingLocation(group.location);
-                  setLocationError(null);
-                  setShowEditLocationModal(true);
-                  setActiveLocationMenu(null);
-                  setMenuPosition(null);
-                }}
-              >
-                <Text style={styles.dropdownOptionText}>Editar local</Text>
+            <View style={styles.toolbarIcons}>
+              {!searchQuery && (
+                <TouchableOpacity onPress={() => setHideEmpty((v) => !v)}>
+                  {hideEmpty
+                    ? <EyeOff size={20} color={Colors.textSecondary} />
+                    : <Eye size={20} color={Colors.textSecondary} />}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={allCollapsed ? expandAll : collapseAll}>
+                {allCollapsed
+                  ? <ChevronsDownUp size={20} color={Colors.textSecondary} />
+                  : <ChevronsUpDown size={20} color={Colors.textSecondary} />}
               </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  const group = groups.find((g) => g.locationId === activeLocationMenu);
-                  if (!group?.location) return;
-                  setLocationToDelete(group.location);
-                  setLocationError(null);
-                  setShowDeleteLocationConfirm(true);
-                  setActiveLocationMenu(null);
-                  setMenuPosition(null);
-                }}
-              >
-                <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>
-                  Excluir local
-                </Text>
-              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Empty state */}
+          {isEmpty && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📦</Text>
+              <Text style={styles.emptyText}>Nenhum item encontrado</Text>
             </View>
           )}
-        </TouchableOpacity>
-      </Modal>
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => {
-          setEditingItem(undefined);
-          setPreselectedLocationId(undefined);
-          setShowItemForm(true);
-        }}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-
-      {/* ── Novo local modal ── */}
-      <AddLocationModal
-        visible={showNewLocationModal}
-        onClose={() => setShowNewLocationModal(false)}
-        onConfirm={createLocation}
-        saving={savingLocation}
-        error={locationError}
-      />
-
-      {/* ── Editar local modal ── */}
-      <EditLocationModal
-        visible={showEditLocationModal}
-        onClose={() => { setShowEditLocationModal(false); setEditingLocation(null); }}
-        onConfirm={saveEditLocation}
-        saving={savingLocation}
-        initialName={editingLocation?.name ?? ''}
-        initialIcon={editingLocation?.icon ?? ''}
-        error={locationError}
-      />
-
-      {/* ── Confirmar exclusão de local ── */}
-      <DeleteLocationConfirmModal
-        visible={showDeleteLocationConfirm}
-        onClose={() => setShowDeleteLocationConfirm(false)}
-        onConfirm={deleteLocation}
-        deleting={deletingLocation}
-        locationName={locationToDelete?.name ?? ''}
-        error={locationError}
-      />
-
-      {/* ── Modal Histórico ── */}
-      <Modal visible={showHistoryModal} transparent animationType="slide">
-        <View style={styles.historyBackdrop}>
-          <View style={styles.historySheet}>
-            <View style={styles.historyHeader}>
-              <Text style={styles.historyTitle}>Histórico</Text>
-              <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
-                <Text style={styles.historyClose}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-
-            {historyError && (
-              <Text style={styles.historyError}>{historyError}</Text>
-            )}
-
-            <ScrollView contentContainerStyle={styles.historyList}>
-              {historyItems.length === 0 ? (
-                <Text style={styles.historyEmpty}>Nenhum item no histórico.</Text>
-              ) : (
-                historyItems.map((item) => {
-                  const badge = getDestinationMeta(item.destination);
-                  return (
-                    <View key={item.id} style={styles.historyItem}>
-                      <View style={styles.historyItemInfo}>
-                        <Text style={styles.historyItemName}>{item.name}</Text>
-                        <View style={styles.historyItemMeta}>
-                          {badge && (
-                            <View style={[styles.destBadge, { backgroundColor: badge.badge.bg }]}>
-                              <Text style={[styles.destBadgeText, { color: badge.badge.text }]}>
-                                {badge.label}
-                              </Text>
-                            </View>
-                          )}
-                          {item.resolvedAt && (
-                            <Text style={styles.historyDate}>{formatDatePT(item.resolvedAt)}</Text>
-                          )}
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.restoreButton}
-                        onPress={() => handleRestore(item.id)}
-                        disabled={restoringId === item.id}
-                      >
-                        <Text style={styles.restoreButtonText}>
-                          {restoringId === item.id ? '...' : 'Restaurar'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Item menu error ── */}
-      {!!itemMenuError && (
-        <View style={styles.itemMenuErrorBox}>
-          <Text style={styles.itemMenuErrorText}>{itemMenuError}</Text>
-        </View>
-      )}
-
-      {/* ── Item context menu ── */}
-      <Modal
-        visible={showItemMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowItemMenu(false)}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => setShowItemMenu(false)}
-        >
-          <View style={styles.itemMenuCard}>
-            <TouchableOpacity
-              style={styles.dropdownOption}
-              onPress={() => {
-                setShowItemMenu(false);
-                setEditingItem(menuItem ?? undefined);
+          {/* Groups */}
+          {visibleGroups.map((group) => (
+            <LocationGroupCard
+              key={group.locationId ?? '__none__'}
+              group={group}
+              collapsed={isCollapsed(group.locationId)}
+              photoUrls={photoUrls}
+              onToggle={() => toggleLocation(group.locationId)}
+              onEditItem={(item: InventoryItem) => {
+                setEditingItem(item);
                 setPreselectedLocationId(undefined);
                 setShowItemForm(true);
               }}
-            >
-              <Text style={styles.dropdownOptionText}>Editar</Text>
-            </TouchableOpacity>
-            <View style={styles.dropdownDivider} />
-            <TouchableOpacity
-              style={styles.dropdownOption}
-              onPress={() => {
-                setShowItemMenu(false);
-                setShowItemResolvePicker(true);
+              menuActionsForItem={menuActionsForItem}
+              onAddItem={() => {
+                setEditingItem(undefined);
+                setPreselectedLocationId(group.locationId ?? undefined);
+                setShowItemForm(true);
               }}
-            >
-              <Text style={styles.dropdownOptionText}>Dar saída</Text>
-            </TouchableOpacity>
-            <View style={styles.dropdownDivider} />
-            <TouchableOpacity
-              style={styles.dropdownOption}
-              onPress={() => {
-                setShowItemMenu(false);
-                setShowItemDeleteConfirm(true);
+              onOpenMenu={(top: number) => {
+                setActiveLocationMenu(group.locationId);
+                setMenuPosition({ top, right: 16 });
               }}
-            >
-              <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>Eliminar</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+            />
+          ))}
 
-      {/* ── Item resolve picker ── */}
-      <Modal
-        visible={showItemResolvePicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowItemResolvePicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowItemResolvePicker(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.pickerCard}>
-              <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
-              {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.pickerOption,
-                    idx < arr.length - 1 && styles.pickerOptionBorder,
-                  ]}
-                  onPress={() => handleMenuResolve(opt.value)}
-                >
-                  <Text style={styles.pickerOptionText}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-              <View style={styles.pickerDivider} />
-              <TouchableOpacity
-                style={styles.pickerOption}
-                onPress={() => setShowItemResolvePicker(false)}
-              >
-                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* Adicionar local */}
+          <TouchableOpacity
+            style={styles.addLocationButton}
+            onPress={() => { setLocationError(null); setShowNewLocationModal(true); }}
+          >
+            <Text style={styles.addLocationButtonText}>+ Adicionar local</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        </ScrollView>
 
-      {/* ── Item delete confirm ── */}
-      <Modal
-        visible={showItemDeleteConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowItemDeleteConfirm(false)}
-      >
-        <View style={styles.confirmBackdrop}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>
-              Apagar «{menuItem?.name}»?
-            </Text>
-            <Text style={styles.confirmBody}>Esta ação não pode ser desfeita.</Text>
-            <View style={styles.confirmButtons}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, styles.confirmBtnCancel]}
-                onPress={() => setShowItemDeleteConfirm(false)}
-                disabled={deletingMenuItemId !== null}
-              >
-                <Text style={styles.confirmBtnCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, styles.confirmBtnDelete]}
-                onPress={handleMenuDelete}
-                disabled={deletingMenuItemId !== null}
-              >
-                <Text style={styles.confirmBtnDeleteText}>
-                  {deletingMenuItemId !== null ? 'A apagar...' : 'Apagar'}
-                </Text>
-              </TouchableOpacity>
+        {/* Dropdown menu — Modal para garantir zIndex acima de tudo */}
+        <Modal
+          visible={activeLocationMenu !== null}
+          transparent
+          animationType="none"
+          onRequestClose={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
+          >
+            {menuPosition && (
+              <View style={[styles.dropdownMenu, { top: menuPosition.top, right: menuPosition.right }]}>
+                <TouchableOpacity
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    const group = groups.find((g) => g.locationId === activeLocationMenu);
+                    if (!group?.location) return;
+                    setEditingLocation(group.location);
+                    setLocationError(null);
+                    setShowEditLocationModal(true);
+                    setActiveLocationMenu(null);
+                    setMenuPosition(null);
+                  }}
+                >
+                  <Text style={styles.dropdownOptionText}>Editar local</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownDivider} />
+                <TouchableOpacity
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    const group = groups.find((g) => g.locationId === activeLocationMenu);
+                    if (!group?.location) return;
+                    setLocationToDelete(group.location);
+                    setLocationError(null);
+                    setShowDeleteLocationConfirm(true);
+                    setActiveLocationMenu(null);
+                    setMenuPosition(null);
+                  }}
+                >
+                  <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>
+                    Excluir local
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </TouchableOpacity>
+        </Modal>
+
+        {/* FAB */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => {
+            setEditingItem(undefined);
+            setPreselectedLocationId(undefined);
+            setShowItemForm(true);
+          }}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+
+        {/* ── Novo local modal ── */}
+        <AddLocationModal
+          visible={showNewLocationModal}
+          onClose={() => setShowNewLocationModal(false)}
+          onConfirm={createLocation}
+          saving={savingLocation}
+          error={locationError}
+        />
+
+        {/* ── Editar local modal ── */}
+        <EditLocationModal
+          visible={showEditLocationModal}
+          onClose={() => { setShowEditLocationModal(false); setEditingLocation(null); }}
+          onConfirm={saveEditLocation}
+          saving={savingLocation}
+          initialName={editingLocation?.name ?? ''}
+          initialIcon={editingLocation?.icon ?? ''}
+          error={locationError}
+        />
+
+        {/* ── Confirmar exclusão de local ── */}
+        <DeleteLocationConfirmModal
+          visible={showDeleteLocationConfirm}
+          onClose={() => setShowDeleteLocationConfirm(false)}
+          onConfirm={deleteLocation}
+          deleting={deletingLocation}
+          locationName={locationToDelete?.name ?? ''}
+          error={locationError}
+        />
+
+        {/* ── Modal Histórico ── */}
+        <Modal visible={showHistoryModal} transparent animationType="slide">
+          <View style={styles.historyBackdrop}>
+            <View style={styles.historySheet}>
+              <View style={styles.historyHeader}>
+                <Text style={styles.historyTitle}>Histórico</Text>
+                <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                  <Text style={styles.historyClose}>Fechar</Text>
+                </TouchableOpacity>
+              </View>
+
+              {historyError && (
+                <Text style={styles.historyError}>{historyError}</Text>
+              )}
+
+              <ScrollView contentContainerStyle={styles.historyList}>
+                {historyItems.length === 0 ? (
+                  <Text style={styles.historyEmpty}>Nenhum item no histórico.</Text>
+                ) : (
+                  historyItems.map((item) => {
+                    const badge = getDestinationMeta(item.destination);
+                    return (
+                      <View key={item.id} style={styles.historyItem}>
+                        <View style={styles.historyItemInfo}>
+                          <Text style={styles.historyItemName}>{item.name}</Text>
+                          <View style={styles.historyItemMeta}>
+                            {badge && (
+                              <View style={[styles.destBadge, { backgroundColor: badge.badge.bg }]}>
+                                <Text style={[styles.destBadgeText, { color: badge.badge.text }]}>
+                                  {badge.label}
+                                </Text>
+                              </View>
+                            )}
+                            {item.resolvedAt && (
+                              <Text style={styles.historyDate}>{formatDatePT(item.resolvedAt)}</Text>
+                            )}
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.restoreButton}
+                          onPress={() => handleRestore(item.id)}
+                          disabled={restoringId === item.id}
+                        >
+                          <Text style={styles.restoreButtonText}>
+                            {restoringId === item.id ? '...' : 'Restaurar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* ── Item form ── */}
-      {selectedHousehold && (
-        <ItemForm
-          visible={showItemForm}
-          householdId={selectedHousehold.id}
-          locations={locations}
-          item={editingItem}
-          preselectedLocationId={preselectedLocationId}
-          onClose={() => setShowItemForm(false)}
-          onSaved={() => {
-            setShowItemForm(false);
-            loadData(true);
-          }}
-        />
-      )}
-    </View>
+        {/* ── Item action error ── */}
+        {!!menuActionError && (
+          <View style={styles.menuActionErrorBox}>
+            <Text style={styles.menuActionErrorText}>{menuActionError}</Text>
+          </View>
+        )}
+
+        {/* ── Item resolve picker ── */}
+        <Modal
+          visible={showItemResolvePicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowItemResolvePicker(false)}
+        >
+          <TouchableOpacity
+            style={styles.pickerBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowItemResolvePicker(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.pickerCard}>
+                <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
+                {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.pickerOption,
+                      idx < arr.length - 1 && styles.pickerOptionBorder,
+                    ]}
+                    onPress={() => handleResolveItem(opt.value)}
+                  >
+                    <Text style={styles.pickerOptionText}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <View style={styles.pickerDivider} />
+                <TouchableOpacity
+                  style={styles.pickerOption}
+                  onPress={() => setShowItemResolvePicker(false)}
+                >
+                  <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* ── Item delete confirm ── */}
+        <Modal
+          visible={showItemDeleteConfirm}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowItemDeleteConfirm(false)}
+        >
+          <View style={styles.confirmBackdrop}>
+            <View style={styles.confirmCard}>
+              <Text style={styles.confirmTitle}>
+                Apagar «{deleteTargetItem?.name}»?
+              </Text>
+              <Text style={styles.confirmBody}>Esta ação não pode ser desfeita.</Text>
+              <View style={styles.confirmButtons}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, styles.confirmBtnCancel]}
+                  onPress={() => setShowItemDeleteConfirm(false)}
+                  disabled={deletingItemId !== null}
+                >
+                  <Text style={styles.confirmBtnCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, styles.confirmBtnDelete]}
+                  onPress={handleDeleteItem}
+                  disabled={deletingItemId !== null}
+                >
+                  <Text style={styles.confirmBtnDeleteText}>
+                    {deletingItemId !== null ? 'A apagar...' : 'Apagar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── Item form ── */}
+        {selectedHousehold && (
+          <ItemForm
+            visible={showItemForm}
+            householdId={selectedHousehold.id}
+            locations={locations}
+            item={editingItem}
+            preselectedLocationId={preselectedLocationId}
+            onClose={() => setShowItemForm(false)}
+            onSaved={() => {
+              setShowItemForm(false);
+              loadData(true);
+            }}
+          />
+        )}
+      </View>
+    </ItemMenuProvider>
   );
 }
 
@@ -912,34 +896,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Item menu error
-  itemMenuErrorBox: {
+  // Item action error
+  menuActionErrorBox: {
     marginHorizontal: 16,
     marginBottom: 8,
     backgroundColor: '#fef2f2',
     borderRadius: 8,
     padding: 10,
   },
-  itemMenuErrorText: {
+  menuActionErrorText: {
     color: Colors.error,
     fontSize: 13,
     textAlign: 'center',
-  },
-
-  // Item context menu card
-  itemMenuCard: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '38%',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    minWidth: 220,
-    paddingVertical: 4,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
   },
 
   // Picker (resolve)

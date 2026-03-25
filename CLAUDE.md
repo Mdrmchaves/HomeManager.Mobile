@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-24
+> Última actualização: 2026-03-25
 
 ## 1. Visão Geral
 
@@ -62,6 +62,7 @@ HomeManager.Mobile/
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
 │   ├── AuthGuard.tsx            ← redirect declarativo (<Redirect>) baseado no AuthContext
+│   ├── ItemMenuProvider.tsx     ← Modal do menu contextual, consome ItemMenuContext; envolve listas
 │   └── inventory/
 │       ├── SearchBar.tsx
 │       ├── DestinationFilter.tsx
@@ -72,7 +73,8 @@ HomeManager.Mobile/
 │           ├── EditLocationModal.tsx
 │           └── DeleteLocationConfirmModal.tsx
 ├── contexts/
-│   └── AuthContext.tsx          ← AuthProvider + useAuth hook (estado puro, zero navegação)
+│   ├── AuthContext.tsx          ← AuthProvider + useAuth hook (estado puro, zero navegação)
+│   └── ItemMenuContext.tsx      ← estado do menu contextual genérico (openMenu/closeMenu + useItemMenuState)
 ├── constants/
 │   ├── colors.ts
 │   ├── config.ts
@@ -189,8 +191,9 @@ eas build --platform android --profile preview  # APK para testar
   (elimina duplicação entre InventoryItemRow, item-form, pertences)
 - Ecrã de Perfil — nome editável, email read-only, avatar com inicial;
   acessível via "Perfil" no modal do avatar (header); tab oculta com href:null
-- Long press em item abre menu contextual com Editar / Dar saída / Eliminar —
-  atalho adicional ao formulário; toque simples continua a abrir o formulário
+- Long press em qualquer item abre menu contextual genérico ancorado ao item
+  (ItemMenuProvider + ItemMenuContext) — actions configuráveis por lista;
+  Pertences usa Editar / Dar saída / Eliminar; toque simples continua a abrir o formulário
 
 ### Backlog (por ordem)
 
