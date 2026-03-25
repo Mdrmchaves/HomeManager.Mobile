@@ -596,18 +596,26 @@ export default function PertencesTab() {
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
               <View style={styles.pickerCard}>
                 <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
-                {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.pickerOption,
-                      idx < arr.length - 1 && styles.pickerOptionBorder,
-                    ]}
-                    onPress={() => handleResolveItem(opt.value)}
-                  >
-                    <Text style={styles.pickerOptionText}>{opt.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => {
+                  const isPreselected = resolveTargetItem?.destination === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.pickerOption,
+                        idx < arr.length - 1 && styles.pickerOptionBorder,
+                      ]}
+                      onPress={() => handleResolveItem(opt.value)}
+                    >
+                      <View style={styles.resolveOptionRow}>
+                        <Text style={styles.pickerOptionText}>{opt.label}</Text>
+                        {isPreselected && (
+                          <Text style={{ color: Colors.primary, fontSize: 16 }}>✓</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
                 <View style={styles.pickerDivider} />
                 <TouchableOpacity
                   style={styles.pickerOption}
@@ -908,6 +916,13 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: 13,
     textAlign: 'center',
+  },
+
+  // Resolve picker option row
+  resolveOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   // Picker (resolve)
