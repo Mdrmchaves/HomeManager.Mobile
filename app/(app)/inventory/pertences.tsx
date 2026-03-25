@@ -14,7 +14,7 @@ import { LocationService } from '../../../services/location.service';
 import { HouseholdService } from '../../../services/household.service';
 import { InventoryService } from '../../../services/inventory.service';
 import { Colors } from '../../../constants/colors';
-import { DESTINATION_FILTER_OPTIONS, getDestinationMeta, getDestinationLabel } from '../../../constants/destinations';
+import { DESTINATION_FILTER_OPTIONS, DESTINATION_RESOLVE_OPTIONS, getDestinationMeta, getDestinationLabel } from '../../../constants/destinations';
 import { useInventory } from '@/hooks/useInventory';
 import SearchBar from '@/components/inventory/SearchBar';
 import DestinationFilter from '@/components/inventory/DestinationFilter';
@@ -125,6 +125,14 @@ export default function PertencesTab() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // Item context menu
+  const [menuItem, setMenuItem] = useState<InventoryItem | null>(null);
+  const [showItemMenu, setShowItemMenu] = useState(false);
+  const [deletingMenuItemId, setDeletingMenuItemId] = useState<string | null>(null);
+  const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
+  const [showItemResolvePicker, setShowItemResolvePicker] = useState(false);
+  const [itemMenuError, setItemMenuError] = useState<string | null>(null);
+
   // Saving / deleting flags
   const [savingLocation, setSavingLocation] = useState(false);
   const [deletingLocation, setDeletingLocation] = useState(false);
@@ -221,6 +229,40 @@ export default function PertencesTab() {
       setHistoryError('Erro ao restaurar item.');
     } finally {
       setRestoringId(null);
+    }
+  }
+
+  // ── Item long-press menu ──
+
+  function onItemLongPress(item: InventoryItem) {
+    setMenuItem(item);
+    setItemMenuError(null);
+    setShowItemMenu(true);
+  }
+
+  async function handleMenuResolve(destination: string) {
+    if (!menuItem) return;
+    setShowItemResolvePicker(false);
+    try {
+      await InventoryService.resolveItem(menuItem.id, destination);
+      loadData(true);
+    } catch {
+      setItemMenuError('Erro ao dar saída ao item.');
+    }
+  }
+
+  async function handleMenuDelete() {
+    if (!menuItem) return;
+    setShowItemDeleteConfirm(false);
+    setDeletingMenuItemId(menuItem.id);
+    try {
+      await InventoryService.deleteItem(menuItem.id);
+      loadData(true);
+    } catch {
+      setItemMenuError('Erro ao apagar item.');
+    } finally {
+      setDeletingMenuItemId(null);
+      setMenuItem(null);
     }
   }
 
@@ -331,6 +373,7 @@ export default function PertencesTab() {
               setPreselectedLocationId(undefined);
               setShowItemForm(true);
             }}
+            onItemLongPress={onItemLongPress}
             onAddItem={() => {
               setEditingItem(undefined);
               setPreselectedLocationId(group.locationId ?? undefined);
@@ -496,6 +539,137 @@ export default function PertencesTab() {
                 })
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Item menu error ── */}
+      {!!itemMenuError && (
+        <View style={styles.itemMenuErrorBox}>
+          <Text style={styles.itemMenuErrorText}>{itemMenuError}</Text>
+        </View>
+      )}
+
+      {/* ── Item context menu ── */}
+      <Modal
+        visible={showItemMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowItemMenu(false)}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1}
+          onPress={() => setShowItemMenu(false)}
+        >
+          <View style={styles.itemMenuCard}>
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={() => {
+                setShowItemMenu(false);
+                setEditingItem(menuItem ?? undefined);
+                setPreselectedLocationId(undefined);
+                setShowItemForm(true);
+              }}
+            >
+              <Text style={styles.dropdownOptionText}>Editar</Text>
+            </TouchableOpacity>
+            <View style={styles.dropdownDivider} />
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={() => {
+                setShowItemMenu(false);
+                setShowItemResolvePicker(true);
+              }}
+            >
+              <Text style={styles.dropdownOptionText}>Dar saída</Text>
+            </TouchableOpacity>
+            <View style={styles.dropdownDivider} />
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={() => {
+                setShowItemMenu(false);
+                setShowItemDeleteConfirm(true);
+              }}
+            >
+              <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Item resolve picker ── */}
+      <Modal
+        visible={showItemResolvePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowItemResolvePicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowItemResolvePicker(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.pickerCard}>
+              <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
+              {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.pickerOption,
+                    idx < arr.length - 1 && styles.pickerOptionBorder,
+                  ]}
+                  onPress={() => handleMenuResolve(opt.value)}
+                >
+                  <Text style={styles.pickerOptionText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <View style={styles.pickerDivider} />
+              <TouchableOpacity
+                style={styles.pickerOption}
+                onPress={() => setShowItemResolvePicker(false)}
+              >
+                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Item delete confirm ── */}
+      <Modal
+        visible={showItemDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowItemDeleteConfirm(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>
+              Apagar «{menuItem?.name}»?
+            </Text>
+            <Text style={styles.confirmBody}>Esta ação não pode ser desfeita.</Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnCancel]}
+                onPress={() => setShowItemDeleteConfirm(false)}
+                disabled={deletingMenuItemId !== null}
+              >
+                <Text style={styles.confirmBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnDelete]}
+                onPress={handleMenuDelete}
+                disabled={deletingMenuItemId !== null}
+              >
+                <Text style={styles.confirmBtnDeleteText}>
+                  {deletingMenuItemId !== null ? 'A apagar...' : 'Apagar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -736,6 +910,121 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#ffffff',
     fontWeight: '500',
+  },
+
+  // Item menu error
+  itemMenuErrorBox: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#fef2f2',
+    borderRadius: 8,
+    padding: 10,
+  },
+  itemMenuErrorText: {
+    color: Colors.error,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+
+  // Item context menu card
+  itemMenuCard: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '38%',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    minWidth: 220,
+    paddingVertical: 4,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+
+  // Picker (resolve)
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  pickerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+  },
+  pickerTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  pickerOption: {
+    paddingVertical: 14,
+  },
+  pickerOptionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  pickerOptionText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  pickerDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
+  },
+
+  // Delete confirm
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  confirmCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  confirmBody: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 24,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  confirmBtnCancel: {
+    backgroundColor: Colors.border,
+  },
+  confirmBtnCancelText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  confirmBtnDelete: {
+    backgroundColor: Colors.error,
+  },
+  confirmBtnDeleteText: {
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '600',
   },
 
   // FAB

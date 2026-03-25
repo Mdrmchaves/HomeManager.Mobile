@@ -13,15 +13,22 @@ type Props = {
   isLast: boolean;
   photoUrls: Record<string, string>;
   onEdit: () => void;
+  onLongPress: () => void;
 };
 
-export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Props) {
+export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, onLongPress }: Props) {
   const destMeta = getDestinationMeta(item.destination);
   const signedUrl = item.photoUrl ? photoUrls[item.photoUrl] : null;
   const barColor = destMeta?.barColor ?? DEFAULT_BAR_COLOR;
 
   return (
-    <View style={[itemStyles.row, !isLast && itemStyles.rowBorder]}>
+    <TouchableOpacity
+      style={[itemStyles.row, !isLast && itemStyles.rowBorder]}
+      onPress={onEdit}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      activeOpacity={0.7}
+    >
       {/* Colored left bar */}
       <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
 
@@ -63,12 +70,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Pr
           <Text style={itemStyles.ownerName}>👤 {item.ownerName}</Text>
         )}
       </View>
-
-      {/* Edit button */}
-      <TouchableOpacity style={itemStyles.editButton} onPress={onEdit}>
-        <Text style={itemStyles.editButtonText}>Editar</Text>
-      </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -76,6 +78,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit }: Pr
 
 const itemStyles = StyleSheet.create({
   row: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -143,14 +146,5 @@ const itemStyles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
-  },
-  editButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  editButtonText: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '500',
   },
 });

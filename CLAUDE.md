@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-24 (refactor auth declarativo)
+> Última actualização: 2026-03-24
 
 ## 1. Visão Geral
 
@@ -132,6 +132,7 @@ eas build --platform android --profile preview  # APK para testar
 | `supabase.auth.signOut()` bloqueia indefinidamente | `refreshSession()` no boot mantém o lock interno do Supabase | Não chamar `refreshSession()` no boot — usar apenas `getSession()` |
 | lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
 | Sessão expirada deixava app em estado intermédio sem redirect para login | `onAuthStateChange` + `useEffect` com múltiplas dependências criavam condição de corrida | Refatorado para `AuthProvider` (estado puro) + `AuthGuard` (`<Redirect>` declarativo) — sem `router.replace` em efeitos |
+| `AuthGuard` com `return <Redirect />` sem `{children}` deixava ecrã de login em branco | Expo Router precisa do `<Slot>` sempre presente no DOM para manter o stack de navegação — retornar apenas `<Redirect />` sem children desmonta o Slot | `AuthGuard` renderiza sempre `{children}` junto com os `<Redirect>` condicionais num Fragment — o Redirect dispara a navegação e o children mantém o Slot vivo durante a transição |
 
 ## 9. Diferenças vs Web (Angular)
 
@@ -188,6 +189,8 @@ eas build --platform android --profile preview  # APK para testar
   (elimina duplicação entre InventoryItemRow, item-form, pertences)
 - Ecrã de Perfil — nome editável, email read-only, avatar com inicial;
   acessível via "Perfil" no modal do avatar (header); tab oculta com href:null
+- Long press em item abre menu contextual com Editar / Dar saída / Eliminar —
+  atalho adicional ao formulário; toque simples continua a abrir o formulário
 
 ### Backlog (por ordem)
 

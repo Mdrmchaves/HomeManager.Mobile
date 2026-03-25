@@ -23,6 +23,7 @@ type Props = {
   photoUrls: Record<string, string>;
   onToggle: () => void;
   onEditItem: (item: InventoryItem) => void;
+  onItemLongPress: (item: InventoryItem) => void;
   onAddItem: () => void;
   onOpenMenu: (top: number) => void;
 };
@@ -33,6 +34,7 @@ export default function LocationGroupCard({
   photoUrls,
   onToggle,
   onEditItem,
+  onItemLongPress,
   onAddItem,
   onOpenMenu,
 }: Props) {
@@ -89,6 +91,7 @@ export default function LocationGroupCard({
                 isLast={idx === group.items.length - 1}
                 photoUrls={photoUrls}
                 onEdit={() => onEditItem(item)}
+                onLongPress={() => onItemLongPress(item)}
               />
             ))}
 
