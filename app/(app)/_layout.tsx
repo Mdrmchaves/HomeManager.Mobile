@@ -37,7 +37,7 @@ export function useHousehold() {
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
-const STATUS_BAR_HEIGHT =
+export const STATUS_BAR_HEIGHT =
   Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 50;
 
 function AppHeader({ userEmail }: { userEmail: string }) {

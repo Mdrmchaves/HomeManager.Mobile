@@ -1,7 +1,8 @@
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import type { ReactNode } from 'react';
 import { Colors } from '@/constants/colors';
 import { ItemMenuContextProvider, useItemMenu, useItemMenuState } from '@/contexts/ItemMenuContext';
+import { STATUS_BAR_HEIGHT } from '@/app/(app)/_layout';
 
 // ─── Modal (rendered inside the context provider) ─────────────────────────────
 
@@ -10,6 +11,16 @@ function ItemMenuModal() {
   const { isVisible, menuItem, menuLayout, menuActions } = useItemMenuState();
 
   if (!menuLayout) return null;
+
+  const MENU_ITEM_HEIGHT = 44;
+  const MENU_HEADER_HEIGHT = 44;
+  const screenHeight = Dimensions.get('window').height - STATUS_BAR_HEIGHT;
+  const menuEstimatedHeight = MENU_HEADER_HEIGHT + menuActions.length * MENU_ITEM_HEIGHT;
+  const spaceBelow = screenHeight - (menuLayout.top + menuLayout.itemHeight);
+  const opensAbove = spaceBelow < menuEstimatedHeight;
+  const menuTop = opensAbove
+    ? menuLayout.top - menuEstimatedHeight
+    : menuLayout.top + menuLayout.itemHeight;
 
   return (
     <Modal
@@ -26,7 +37,7 @@ function ItemMenuModal() {
         <View
           style={[
             styles.card,
-            { top: menuLayout.top -26, left: menuLayout.left, width: menuLayout.width },
+            { top: menuTop, left: menuLayout.left, width: menuLayout.width },
           ]}
         >
           {/* Header */}

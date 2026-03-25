@@ -5,6 +5,7 @@ import { Colors } from '@/constants/colors';
 import { getDestinationMeta, getDestinationLabel, DEFAULT_BAR_COLOR } from '@/constants/destinations';
 import { useItemMenu } from '@/contexts/ItemMenuContext';
 import type { MenuAction } from '@/contexts/ItemMenuContext';
+import { STATUS_BAR_HEIGHT } from '@/app/(app)/_layout';
 import type { InventoryItem } from '@/types/inventory-item';
 
 export { getDestinationLabel };
@@ -36,7 +37,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
           rowRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
             openMenu(
               { id: item.id, name: item.name },
-              { top: pageY + _h, left: pageX, width: _w },
+              { top: pageY - STATUS_BAR_HEIGHT, left: pageX, width: _w, itemHeight: _h },
               menuActions
             );
           });

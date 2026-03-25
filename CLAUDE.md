@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-25
+> Última actualização: 2026-03-24
 
 ## 1. Visão Geral
 
@@ -135,6 +135,7 @@ eas build --platform android --profile preview  # APK para testar
 | lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
 | Sessão expirada deixava app em estado intermédio sem redirect para login | `onAuthStateChange` + `useEffect` com múltiplas dependências criavam condição de corrida | Refatorado para `AuthProvider` (estado puro) + `AuthGuard` (`<Redirect>` declarativo) — sem `router.replace` em efeitos |
 | `AuthGuard` com `return <Redirect />` sem `{children}` deixava ecrã de login em branco | Expo Router precisa do `<Slot>` sempre presente no DOM para manter o stack de navegação — retornar apenas `<Redirect />` sem children desmonta o Slot | `AuthGuard` renderiza sempre `{children}` junto com os `<Redirect>` condicionais num Fragment — o Redirect dispara a navegação e o children mantém o Slot vivo durante a transição |
+| Menu contextual desalinhado e cortado em itens no fundo do ecrã | `measure` devolve `pageY` incluindo a status bar; sem lógica de flip quando o espaço abaixo é insuficiente | Subtrair `STATUS_BAR_HEIGHT` ao `pageY`; calcular `spaceBelow` vs `menuEstimatedHeight` — se insuficiente, abrir acima do item (`opensAbove`) |
 
 ## 9. Diferenças vs Web (Angular)
 

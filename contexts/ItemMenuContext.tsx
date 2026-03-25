@@ -12,7 +12,7 @@ export interface MenuAction {
 interface ItemMenuContextValue {
   openMenu: (
     item: { id: string; name: string },
-    layout: { top: number; left: number; width: number },
+    layout: { top: number; left: number; width: number; itemHeight: number },
     actions: MenuAction[]
   ) => void;
   closeMenu: () => void;
@@ -20,7 +20,7 @@ interface ItemMenuContextValue {
 
 interface ItemMenuState {
   menuItem: { id: string; name: string } | null;
-  menuLayout: { top: number; left: number; width: number } | null;
+  menuLayout: { top: number; left: number; width: number; itemHeight: number } | null;
   menuActions: MenuAction[];
   isVisible: boolean;
 }
@@ -42,7 +42,7 @@ export function ItemMenuContextProvider({ children }: { children: ReactNode }) {
 
   function openMenu(
     item: { id: string; name: string },
-    layout: { top: number; left: number; width: number },
+    layout: { top: number; left: number; width: number; itemHeight: number },
     actions: MenuAction[]
   ) {
     setState({ menuItem: item, menuLayout: layout, menuActions: actions, isVisible: true });
