@@ -175,9 +175,7 @@ export default function ItemForm({
       if (!previewUri && !selectedFile) photoUrl = undefined;
       try {
         if (selectedFile) {
-          console.log('Tentando upload:', selectedFile);
           photoUrl = await StorageService.uploadItemPhoto(selectedFile.uri, selectedFile.ext);
-          console.log('Upload ok:', photoUrl);
         }
       } catch (e) {
         console.log('Erro no submit:', e);

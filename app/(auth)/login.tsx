@@ -26,8 +26,6 @@ function Logo() {
         />
         {/* Janela — buraco verde no telhado */}
         <Polygon points="23.5,17 28,12.5 32.5,17 32.5,27 23.5,27" fill="#2D6A4F" />
-        {/* Porta — buraco verde */}
-        <Rect x={23.5} y={38} width={9} height={9} fill="#2D6A4F" />
       </Svg>
 
       <View style={{ alignItems: 'center', marginTop: 10 }}>

@@ -15,9 +15,7 @@ export const supabase = createClient(Config.supabaseUrl, Config.supabaseAnonKey,
 let refreshPromise: Promise<string | null> | null = null;
 
 setAuthTokenGetter(async () => {
-  const t0 = Date.now();
   const { data } = await supabase.auth.getSession();
-  console.log(`getSession: ${Date.now() - t0}ms`);
   const session = data.session;
 
   if (!session) return null;
@@ -45,9 +43,7 @@ setSignOutHandler(async () => {
 
 export const AuthService = {
   signIn: async (email: string, password: string) => {
-    const t0 = Date.now();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    console.log(`signInWithPassword: ${Date.now() - t0}ms`);
     if (error) throw error;
     return data;
   },
