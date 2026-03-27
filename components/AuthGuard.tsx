@@ -1,34 +1,42 @@
-import { Redirect, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { useSegments, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useHousehold } from '../contexts/HouseholdContext';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, hasHousehold, loading } = useAuth();
+  const { session, loading: authLoading } = useAuth();
+  const { hasHousehold, loading: householdLoading } = useHousehold();
   const segments = useSegments() as string[];
-
-  if (loading) return null;
+  const router = useRouter();
 
   const inAuth = segments[0] === '(auth)';
   const inHouseholdSetup = segments[1] === 'household-setup';
 
-  return (
-    <>
-      {/* Sem sessão fora do grupo auth → login */}
-      {!session && !inAuth && <Redirect href="/(auth)/login" />}
+  useEffect(() => {
+    if (authLoading || (session && householdLoading)) return;
 
-      {/* Com sessão no grupo auth → sair para a app */}
-      {session && hasHousehold === true && inAuth && <Redirect href="/(app)/dashboard" />}
+    if (!session && !inAuth) {
+      router.replace('/(auth)/login');
+      return;
+    }
 
-      {/* Com sessão mas sem household → setup (fora do próprio setup) */}
-      {session && hasHousehold === false && !inHouseholdSetup && (
-        <Redirect href="/(app)/household-setup" />
-      )}
+    if (session && hasHousehold === true && inAuth) {
+      router.replace('/(app)/dashboard');
+      return;
+    }
 
-      {/* Com household mas ainda no setup → dashboard */}
-      {session && hasHousehold === true && inHouseholdSetup && (
-        <Redirect href="/(app)/dashboard" />
-      )}
+    if (session && hasHousehold === false && householdLoading === false && !inHouseholdSetup) {
+      router.replace('/(app)/household-setup');
+      return;
+    }
 
-      {children}
-    </>
-  );
+    if (session && hasHousehold === true && inHouseholdSetup) {
+      router.replace('/(app)/dashboard');
+      return;
+    }
+  }, [authLoading, householdLoading, session, hasHousehold, inAuth, inHouseholdSetup]);
+
+  if (authLoading || (session && householdLoading)) return null;
+
+  return <>{children}</>;
 }

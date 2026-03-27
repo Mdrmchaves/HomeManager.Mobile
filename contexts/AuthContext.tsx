@@ -6,16 +6,13 @@ import { HouseholdService } from '../services/household.service';
 
 interface AuthContextValue {
   session: Session | null;
-  hasHousehold: boolean | null;
   loading: boolean;
-  refreshHouseholds: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,33 +21,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       else supabase.auth.stopAutoRefresh();
     });
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        try {
-          const households = await HouseholdService.getMyHouseholds();
-          setHasHousehold(households.length > 0);
-        } catch {
-          setHasHousehold(false);
-        }
-      }
-      setSession(data.session);
-      setLoading(false);
-    });
-
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log(`onAuthStateChange event: ${event}`);
       if (event === 'SIGNED_OUT' || !newSession) {
         setSession(null);
-        setHasHousehold(null);
+        setLoading(false);
         return;
       }
-
-      try {
-        const households = await HouseholdService.getMyHouseholds();
-        setHasHousehold(households.length > 0);
-      } catch {
-        setHasHousehold(false);
-      }
       setSession(newSession);
+      setLoading(false);
     });
 
     return () => {
@@ -62,12 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function refreshHouseholds() {
     try {
       const households = await HouseholdService.getMyHouseholds();
-      setHasHousehold(households.length > 0);
-    } catch {}
+    } catch { }
   }
 
   return (
-    <AuthContext.Provider value={{ session, hasHousehold, loading, refreshHouseholds }}>
+    <AuthContext.Provider value={{ session, loading }}>
       {children}
     </AuthContext.Provider>
   );

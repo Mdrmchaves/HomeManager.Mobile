@@ -12,9 +12,31 @@ export const supabase = createClient(Config.supabaseUrl, Config.supabaseAnonKey,
   },
 });
 
+let refreshPromise: Promise<string | null> | null = null;
+
 setAuthTokenGetter(async () => {
+  const t0 = Date.now();
   const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  console.log(`getSession: ${Date.now() - t0}ms`);
+  const session = data.session;
+
+  if (!session) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = session.expires_at ?? 0;
+  const isExpiringSoon = expiresAt - now < 60;
+
+  if (!isExpiringSoon) {
+    return session.access_token;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = supabase.auth.refreshSession()
+      .then(({ data }) => data.session?.access_token ?? null)
+      .finally(() => { refreshPromise = null; });
+  }
+
+  return refreshPromise;
 });
 
 setSignOutHandler(async () => {
@@ -23,7 +45,9 @@ setSignOutHandler(async () => {
 
 export const AuthService = {
   signIn: async (email: string, password: string) => {
+    const t0 = Date.now();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    console.log(`signInWithPassword: ${Date.now() - t0}ms`);
     if (error) throw error;
     return data;
   },

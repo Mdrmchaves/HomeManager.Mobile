@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { useHousehold } from './_layout';
+import { useHousehold } from '../../contexts/HouseholdContext';
 
 export default function DashboardScreen() {
   const { selectedHousehold } = useHousehold();

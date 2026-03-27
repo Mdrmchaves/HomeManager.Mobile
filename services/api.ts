@@ -12,8 +12,12 @@ export function setSignOutHandler(handler: () => Promise<void>) {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  console.log(`request iniciado: ${path}`);
+  const t0 = Date.now();
   const token = authTokenGetter ? await authTokenGetter() : null;
+  console.log(`getToken: ${Date.now() - t0}ms`);
 
+  const t1 = Date.now();
   const response = await fetch(`${Config.apiUrl}${path}`, {
     ...options,
     headers: {
@@ -22,8 +26,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   });
+  console.log(`fetch ${path}: ${Date.now() - t1}ms`);
 
   if (!response.ok) {
+    console.log('T5: Starting SignOut')
     if (response.status === 401) {
       await signOutHandler?.();
       throw new Error('SESSION_EXPIRED');
@@ -32,6 +38,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(error.message ?? `HTTP ${response.status}`);
   }
 
+  console.log('T6: Finishing')
   const text = await response.text();
   return (text ? JSON.parse(text) : null) as T;
 }

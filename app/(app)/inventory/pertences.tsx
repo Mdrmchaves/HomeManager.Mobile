@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Eye, EyeOff, ChevronsUpDown, ChevronsDownUp } from 'lucide-react-native';
-import { useHousehold } from '../_layout';
+import { useHousehold } from '../../../contexts/HouseholdContext';
 import ItemForm from './item-form';
 import { LocationService } from '../../../services/location.service';
 import { HouseholdService } from '../../../services/household.service';

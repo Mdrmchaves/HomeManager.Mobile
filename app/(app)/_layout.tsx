@@ -14,6 +14,7 @@ import { HouseholdService } from '../../services/household.service';
 import { AuthService, supabase } from '../../services/auth.service';
 import { Colors } from '../../constants/colors';
 import type { Household } from '../../types/household';
+import { useHousehold } from '../../contexts/HouseholdContext';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -31,10 +32,6 @@ const HouseholdContext = createContext<HouseholdContextValue>({
   setSelectedHousehold: () => {},
 });
 
-export function useHousehold() {
-  return useContext(HouseholdContext);
-}
-
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 export const STATUS_BAR_HEIGHT =
@@ -42,7 +39,7 @@ export const STATUS_BAR_HEIGHT =
 
 function AppHeader({ userEmail }: { userEmail: string }) {
   const router = useRouter();
-  const { selectedHousehold, households, setSelectedHousehold } = useHousehold();
+  const { households, selectedHousehold, setSelectedHousehold, refreshHouseholds } = useHousehold();
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
@@ -176,27 +173,14 @@ function AppHeader({ userEmail }: { userEmail: string }) {
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function AppLayout() {
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null);
+  const { households, selectedHousehold, setSelectedHousehold, refreshHouseholds } = useHousehold();
   const [userEmail, setUserEmail] = useState('');
 
   // Use a ref so refreshHouseholds stays stable (no selectedHousehold dep)
   const selectedRef = useRef<Household | null>(null);
   selectedRef.current = selectedHousehold;
 
-  const refreshHouseholds = useCallback(async () => {
-    try {
-      const list = await HouseholdService.getMyHouseholds();
-      setHouseholds(list);
-      // Auto-select first only when nothing is selected yet
-      if (list.length > 0 && !selectedRef.current) {
-        setSelectedHousehold(list[0]);
-      }
-    } catch {}
-  }, []);
-
   useEffect(() => {
-    refreshHouseholds();
     AuthService.getSession().then(({ data }) => {
       setUserEmail(data.session?.user?.email ?? '');
     });
