@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-24
+> Última actualização: 2026-03-27
 
 ## 1. Visão Geral
 
@@ -46,12 +46,12 @@ Consome a mesma API .NET 10. Autenticação via Supabase (JWT partilhado com o w
 ```
 HomeManager.Mobile/
 ├── app/
-│   ├── _layout.tsx              ← Layout raiz — monta AuthProvider + AuthGuard + Slot. Zero lógica de navegação.
+│   ├── _layout.tsx              ← Layout raiz — monta AuthProvider + HouseholdProvider + AuthGuard + Slot. Zero lógica de navegação.
 │   ├── (auth)/
 │   │   ├── _layout.tsx          ← Stack sem header
 │   │   └── login.tsx            ← Login + Registo + confirmação email
 │   └── (app)/
-│       ├── _layout.tsx          ← HouseholdContext + header + tab navigator (ícones Lucide)
+│       ├── _layout.tsx          ← header + tab navigator (ícones Lucide); consome useHousehold() do contexto externo
 │       ├── dashboard.tsx        ← Dashboard (placeholder)
 │       ├── household-setup.tsx  ← Criar / entrar em household
 │       ├── profile.tsx          ← Ecrã de perfil (nome editável, email read-only)
@@ -61,7 +61,7 @@ HomeManager.Mobile/
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
-│   ├── AuthGuard.tsx            ← redirect declarativo (<Redirect>) baseado no AuthContext
+│   ├── AuthGuard.tsx            ← routing via useEffect + router.replace; usa session + hasHousehold; redireciona para household-setup se sem casa
 │   ├── ItemMenuProvider.tsx     ← Modal do menu contextual, consome ItemMenuContext; envolve listas
 │   └── inventory/
 │       ├── SearchBar.tsx
@@ -73,7 +73,8 @@ HomeManager.Mobile/
 │           ├── EditLocationModal.tsx
 │           └── DeleteLocationConfirmModal.tsx
 ├── contexts/
-│   ├── AuthContext.tsx          ← AuthProvider + useAuth hook (estado puro, zero navegação)
+│   ├── AuthContext.tsx          ← AuthProvider + useAuth hook; sessão via onAuthStateChange; expõe session + loading
+│   ├── HouseholdContext.tsx     ← HouseholdProvider + useHousehold; carrega households quando há sessão; hasHousehold: boolean|null; limpa no logout
 │   └── ItemMenuContext.tsx      ← estado do menu contextual genérico (openMenu/closeMenu + useItemMenuState)
 ├── constants/
 │   ├── colors.ts
@@ -82,8 +83,8 @@ HomeManager.Mobile/
 ├── hooks/
 │   └── useInventory.ts          ← items, locations, historyItems, loadData, loadHistory
 ├── services/
-│   ├── api.ts                   ← fetch wrapper com auth token
-│   ├── auth.service.ts          ← Supabase auth + AsyncStorage
+│   ├── api.ts                   ← fetch wrapper; authTokenGetter + signOutHandler injetáveis; 401 chama signOutHandler automaticamente
+│   ├── auth.service.ts          ← Supabase auth; injecta token getter em api.ts; refresh proativo quando token expira em < 60s (singleton promise)
 │   ├── storage.service.ts       ← URLs assinadas + upload Supabase Storage
 │   ├── household.service.ts     ← getMyHouseholds, getHousehold, createHousehold, joinHousehold
 │   ├── inventory.service.ts     ← CRUD + resolveItem + restoreItem + getResolvedItems
@@ -133,8 +134,7 @@ eas build --platform android --profile preview  # APK para testar
 | SecureStore com chunks corrompida em background | Escritas não atómicas quando iOS suspende o app a meio do refresh token | Migrado para `AsyncStorage` (atómico, sem limite de tamanho) + `AppState` listener para `stopAutoRefresh` em background |
 | `supabase.auth.signOut()` bloqueia indefinidamente | `refreshSession()` no boot mantém o lock interno do Supabase | Não chamar `refreshSession()` no boot — usar apenas `getSession()` |
 | lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
-| Sessão expirada deixava app em estado intermédio sem redirect para login | `onAuthStateChange` + `useEffect` com múltiplas dependências criavam condição de corrida | Refatorado para `AuthProvider` (estado puro) + `AuthGuard` (`<Redirect>` declarativo) — sem `router.replace` em efeitos |
-| `AuthGuard` com `return <Redirect />` sem `{children}` deixava ecrã de login em branco | Expo Router precisa do `<Slot>` sempre presente no DOM para manter o stack de navegação — retornar apenas `<Redirect />` sem children desmonta o Slot | `AuthGuard` renderiza sempre `{children}` junto com os `<Redirect>` condicionais num Fragment — o Redirect dispara a navegação e o children mantém o Slot vivo durante a transição |
+| Sessão expirada deixava app em estado intermédio sem redirect para login | Estado de auth e households misturado no mesmo contexto criava condições de corrida | Separado em `AuthProvider` (sessão pura via `onAuthStateChange`) + `HouseholdProvider` (carrega quando há sessão) + `AuthGuard` (`useEffect` + `router.replace` com guards por `authLoading`/`householdLoading`) |
 | Menu contextual desalinhado e cortado em itens no fundo do ecrã | `measure` devolve `pageY` incluindo a status bar; sem lógica de flip quando o espaço abaixo é insuficiente | Subtrair `STATUS_BAR_HEIGHT` ao `pageY`; calcular `spaceBelow` vs `menuEstimatedHeight` — se insuficiente, abrir acima do item (`opensAbove`) |
 
 ## 9. Diferenças vs Web (Angular)
@@ -166,6 +166,12 @@ eas build --platform android --profile preview  # APK para testar
 - .env configurado localmente, .env.example no repo
 - Sessão Supabase via AsyncStorage (substituiu SecureStore + chunking)
 - AppState listener — stopAutoRefresh em background, startAutoRefresh em foreground
+- Arquitetura de auth/routing refatorada:
+  - `AuthProvider` — sessão pura via `onAuthStateChange`, expõe `session` + `loading`
+  - `HouseholdProvider` — carrega households quando há sessão; `hasHousehold: boolean|null`; limpa estado no logout
+  - `AuthGuard` — `useEffect + router.replace`; guards com `authLoading`/`householdLoading`; redireciona para `household-setup` quando sem casa
+  - `api.ts` — `authTokenGetter`/`signOutHandler` injetáveis; 401 faz signOut automático
+  - `auth.service.ts` — refresh proativo quando token expira em < 60s (singleton promise para evitar race)
 - Ecrã de Login/Registo com confirmação de email
 - Household Setup — criar ou entrar via código de convite
 - Shell da app: header com seletor de household (+ adicionar casa),
