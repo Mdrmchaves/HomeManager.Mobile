@@ -5,25 +5,39 @@ import { useFonts, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-font
 import { AuthProvider } from '../contexts/AuthContext';
 import { AuthGuard } from '../components/AuthGuard';
 import { HouseholdProvider } from '../contexts/HouseholdContext';
+import { useAuth } from '../contexts/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// ─── Inner layout (inside AuthProvider, can use useAuth) ──────────────────────
+
+function RootLayoutInner() {
+  const { loading: authLoading } = useAuth();
   const [fontsLoaded] = useFonts({ Nunito_700Bold, Nunito_800ExtraBold });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (!authLoading && fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [authLoading, fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || authLoading) return null;
 
   return (
+    <HouseholdProvider>
+      <AuthGuard>
+        <Slot />
+      </AuthGuard>
+    </HouseholdProvider>
+  );
+}
+
+// ─── Root layout ──────────────────────────────────────────────────────────────
+
+export default function RootLayout() {
+  return (
     <AuthProvider>
-      <HouseholdProvider>
-        <AuthGuard>
-          <Slot />
-        </AuthGuard>
-      </HouseholdProvider>
+      <RootLayoutInner />
     </AuthProvider>
   );
 }

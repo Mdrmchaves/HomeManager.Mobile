@@ -88,6 +88,8 @@ HomeManager.Mobile/
 - `Nunito_800ExtraBold` — títulos/logo principal
 - `Nunito_700Bold` — subtítulos/labels do logo
 
+**Splash screen**: `backgroundColor: #f2ece0`; `SplashScreen.preventAutoHideAsync()` chamado no root layout; splash é escondida apenas quando `authLoading === false && fontsLoaded === true` — evita flash de tela branca durante verificação da sessão Supabase.
+
 ```
 ├── hooks/
 │   └── useInventory.ts          ← items, locations, historyItems, loadData, loadHistory
