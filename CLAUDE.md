@@ -40,6 +40,8 @@ Consome a mesma API .NET 10. Autenticação via Supabase (JWT partilhado com o w
 | expo-image | ~2.0.0 |
 | lucide-react-native | 0.475.0 |
 | react-native-svg | 15.12.1 |
+| @expo-google-fonts/nunito | latest |
+| expo-splash-screen | ~0.29.x |
 
 ## 4. Estrutura de Pastas
 
@@ -80,6 +82,13 @@ HomeManager.Mobile/
 │   ├── colors.ts
 │   ├── config.ts
 │   └── destinations.ts          ← Destination const+type, metadados, opções centralizadas
+```
+
+**Fontes do design system** (carregadas em `app/_layout.tsx` via `useFonts`):
+- `Nunito_800ExtraBold` — títulos/logo principal
+- `Nunito_700Bold` — subtítulos/labels do logo
+
+```
 ├── hooks/
 │   └── useInventory.ts          ← items, locations, historyItems, loadData, loadHistory
 ├── services/

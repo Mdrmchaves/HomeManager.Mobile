@@ -9,8 +9,48 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Svg, { Rect, Path, Polygon } from 'react-native-svg';
 import { AuthService } from '../../services/auth.service';
 import { Colors } from '../../constants/colors';
+
+// ─── Logo ─────────────────────────────────────────────────────────────────────
+
+function Logo() {
+  return (
+    <View style={{ alignItems: 'center', marginBottom: 24 }}>
+      <Svg width={64} height={64} viewBox="0 0 56 56">
+        <Rect width={56} height={56} rx={14} fill="#2D6A4F" />
+        <Path
+          d="M28 9 L7 27 L13 27 L13 47 L24 47 L24 34 L32 34 L32 47 L43 47 L43 27 L49 27 Z"
+          fill="white"
+        />
+        {/* Janela — buraco verde no telhado */}
+        <Polygon points="23.5,17 28,12.5 32.5,17 32.5,27 23.5,27" fill="#2D6A4F" />
+        {/* Porta — buraco verde */}
+        <Rect x={23.5} y={38} width={9} height={9} fill="#2D6A4F" />
+      </Svg>
+
+      <View style={{ alignItems: 'center', marginTop: 10 }}>
+        <Text style={{
+          fontFamily: 'Nunito_800ExtraBold',
+          fontSize: 26,
+          color: '#261e0f',
+          lineHeight: 30,
+        }}>
+          Home
+        </Text>
+        <Text style={{
+          fontFamily: 'Nunito_700Bold',
+          fontSize: 13,
+          color: '#6b5c3e',
+          letterSpacing: 3,
+        }}>
+          MANAGER
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 type Mode = 'login' | 'register';
 type Screen = 'form' | 'confirm';
@@ -110,12 +150,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           {/* Logo */}
-          <View style={styles.logoWrapper}>
-            <View style={styles.logo}>
-              <Text style={styles.logoLetter}>H</Text>
-            </View>
-            <Text style={styles.appTitle}>HomeManager</Text>
-          </View>
+          <Logo />
 
           {/* Mode toggle */}
           <View style={styles.toggleBar}>
