@@ -175,6 +175,7 @@ function AppHeader({ userEmail }: { userEmail: string }) {
 export default function AppLayout() {
   const { households, selectedHousehold, setSelectedHousehold, refreshHouseholds } = useHousehold();
   const [userEmail, setUserEmail] = useState('');
+    const isMounted = useRef(false);
 
   // Use a ref so refreshHouseholds stays stable (no selectedHousehold dep)
   const selectedRef = useRef<Household | null>(null);
@@ -188,9 +189,13 @@ export default function AppLayout() {
 
   // Refresh when returning to any screen in this group (e.g. after household-setup)
   useFocusEffect(
-    useCallback(() => {
-      refreshHouseholds();
-    }, [refreshHouseholds])
+   useCallback(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
+    refreshHouseholds();
+  }, [refreshHouseholds])
   );
 
   return (

@@ -51,7 +51,7 @@ HomeManager.Mobile/
 │   │   ├── _layout.tsx          ← Stack sem header
 │   │   └── login.tsx            ← Login + Registo + confirmação email
 │   └── (app)/
-│       ├── _layout.tsx          ← header + tab navigator (ícones Lucide); consome useHousehold() do contexto externo
+│       ├── _layout.tsx          ← header + tab navigator (ícones Lucide); consome useHousehold() do contexto externo; useFocusEffect com isMounted ref para não disparar refreshHouseholds na primeira montagem
 │       ├── dashboard.tsx        ← Dashboard (placeholder)
 │       ├── household-setup.tsx  ← Criar / entrar em household
 │       ├── profile.tsx          ← Ecrã de perfil (nome editável, email read-only)
