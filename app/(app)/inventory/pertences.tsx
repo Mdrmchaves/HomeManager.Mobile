@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
   },
   skeleton: {
     height: 80,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: Colors.textSecondary,
     borderRadius: 12,
     marginBottom: 12,
   },

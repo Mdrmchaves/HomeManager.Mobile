@@ -37,12 +37,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  async function refreshHouseholds() {
-    try {
-      const households = await HouseholdService.getMyHouseholds();
-    } catch { }
-  }
-
   return (
     <AuthContext.Provider value={{ session, loading }}>
       {children}

@@ -5,7 +5,7 @@ import { useHousehold } from '../contexts/HouseholdContext';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session, loading: authLoading } = useAuth();
-  const { hasHousehold, loading: householdLoading } = useHousehold();
+  const { hasHousehold, loading: householdLoading, selectedHousehold } = useHousehold();
   const segments = useSegments() as string[];
   const router = useRouter();
 
@@ -13,7 +13,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const inHouseholdSetup = segments[1] === 'household-setup';
 
   useEffect(() => {
-    if (authLoading || (session && householdLoading)) return;
+    if (authLoading || (session && householdLoading)) return; 
 
     if (!session && !inAuth) {
       router.replace('/(auth)/login');
@@ -24,7 +24,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace('/(app)/dashboard');
       return;
     }
-
+    
     if (session && hasHousehold === false && householdLoading === false && !inHouseholdSetup) {
       router.replace('/(app)/household-setup');
       return;
