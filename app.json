@@ -32,7 +32,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O HomeManager precisa de acesso às suas fotos para adicionar imagens aos itens."
+        }
+      ]
     ],
     "extra": {
       "router": {},

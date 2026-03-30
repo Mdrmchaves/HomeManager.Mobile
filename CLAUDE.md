@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-27
+> Última actualização: 2026-03-30
 
 ## 1. Visão Geral
 
@@ -63,7 +63,7 @@ HomeManager.Mobile/
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
-│   ├── AuthGuard.tsx            ← routing via useEffect + router.replace; usa session + hasHousehold; redireciona para household-setup se sem casa
+│   ├── AuthGuard.tsx            ← routing via useEffect + router.replace; usa session + hasHousehold; redireciona para household-setup se sem casa; esconde splash screen após primeira decisão de routing
 │   ├── ItemMenuProvider.tsx     ← Modal do menu contextual, consome ItemMenuContext; envolve listas
 │   └── inventory/
 │       ├── SearchBar.tsx
@@ -88,7 +88,7 @@ HomeManager.Mobile/
 - `Nunito_800ExtraBold` — títulos/logo principal
 - `Nunito_700Bold` — subtítulos/labels do logo
 
-**Splash screen**: `backgroundColor: #f2ece0`; `SplashScreen.preventAutoHideAsync()` chamado no root layout; splash é escondida apenas quando `authLoading === false && fontsLoaded === true` — evita flash de tela branca durante verificação da sessão Supabase.
+**Splash screen**: `backgroundColor: #f2ece0`; `SplashScreen.preventAutoHideAsync()` chamado no root layout; splash é escondida no `AuthGuard` após a primeira decisão de routing (via `useRef splashHidden` para garantir uma única chamada) — evita flash de tela branca durante verificação da sessão Supabase e garante que o redirect já está determinado antes de mostrar o ecrã.
 
 ```
 ├── hooks/
@@ -147,6 +147,7 @@ eas build --platform android --profile preview  # APK para testar
 | lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
 | Sessão expirada deixava app em estado intermédio sem redirect para login | Estado de auth e households misturado no mesmo contexto criava condições de corrida | Separado em `AuthProvider` (sessão pura via `onAuthStateChange`) + `HouseholdProvider` (carrega quando há sessão) + `AuthGuard` (`useEffect` + `router.replace` com guards por `authLoading`/`householdLoading`) |
 | Menu contextual desalinhado e cortado em itens no fundo do ecrã | `measure` devolve `pageY` incluindo a status bar; sem lógica de flip quando o espaço abaixo é insuficiente | Subtrair `STATUS_BAR_HEIGHT` ao `pageY`; calcular `spaceBelow` vs `menuEstimatedHeight` — se insuficiente, abrir acima do item (`opensAbove`) |
+| Splash screen mostrada antes do redirect estar determinado | `SplashScreen.hideAsync()` em `_layout.tsx` disparava quando auth/fontes carregavam, antes do AuthGuard decidir o destino | Movido `hideAsync()` para `AuthGuard` com `useRef splashHidden` — só esconde após a primeira decisão de routing |
 
 ## 9. Diferenças vs Web (Angular)
 

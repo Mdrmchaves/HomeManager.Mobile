@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
@@ -14,12 +13,6 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutInner() {
   const { loading: authLoading } = useAuth();
   const [fontsLoaded] = useFonts({ Nunito_700Bold, Nunito_800ExtraBold });
-
-  useEffect(() => {
-    if (!authLoading && fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [authLoading, fontsLoaded]);
 
   if (!fontsLoaded || authLoading) return null;
 
