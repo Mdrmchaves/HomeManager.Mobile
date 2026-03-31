@@ -6,8 +6,6 @@ import type { InventoryItem } from '@/types/inventory-item';
 import type { Location } from '@/types/location';
 import type { Household } from '@/types/household';
 
-// ─── useInventory ─────────────────────────────────────────────────────────────
-
 export function useInventory(selectedHousehold: Household | null) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -16,6 +14,7 @@ export function useInventory(selectedHousehold: Household | null) {
   const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<InventoryItem[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
   const lastHouseholdId = useRef<string | null>(null);
 
   async function loadData(isReload = false) {
@@ -26,10 +25,12 @@ export function useInventory(selectedHousehold: Household | null) {
     setError(null);
 
     try {
-      const [fetchedItems, fetchedLocations] = await Promise.all([
-        InventoryService.getItems(selectedHousehold.id),
+      const [pagedItems, fetchedLocations] = await Promise.all([
+        InventoryService.getItems({ householdId: selectedHousehold.id }),
         LocationService.getLocations(selectedHousehold.id),
       ]);
+
+      const fetchedItems = pagedItems.items;
       setItems(fetchedItems);
       setLocations(fetchedLocations);
 
@@ -64,12 +65,24 @@ export function useInventory(selectedHousehold: Household | null) {
   async function loadHistory() {
     if (!selectedHousehold) return;
     try {
-      const resolved = await InventoryService.getResolvedItems(selectedHousehold.id);
-      setHistoryItems(resolved);
+      const paged = await InventoryService.getResolvedItems(selectedHousehold.id);
+      setHistoryItems(paged.items);
+      setHistoryHasMore(paged.hasMore);
     } catch {
       // deixa historyItems inalterados em caso de erro
     }
   }
 
-  return { items, locations, loading, error, reloading, loadData, photoUrls, historyItems, loadHistory };
+  return {
+    items,
+    locations,
+    loading,
+    error,
+    reloading,
+    loadData,
+    photoUrls,
+    historyItems,
+    historyHasMore,
+    loadHistory,
+  };
 }

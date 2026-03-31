@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-30
+> Última actualização: 2026-03-31
 
 ## 1. Visão Geral
 
@@ -92,19 +92,21 @@ HomeManager.Mobile/
 
 ```
 ├── hooks/
-│   └── useInventory.ts          ← items, locations, historyItems, loadData, loadHistory
+│   └── useInventory.ts          ← items, locations, historyItems, historyHasMore, loadData, loadHistory; API paginada
 ├── services/
 │   ├── api.ts                   ← fetch wrapper; authTokenGetter + signOutHandler injetáveis; 401 chama signOutHandler automaticamente
 │   ├── auth.service.ts          ← Supabase auth; injecta token getter em api.ts; refresh proativo quando token expira em < 60s (singleton promise)
 │   ├── storage.service.ts       ← URLs assinadas + upload Supabase Storage
 │   ├── household.service.ts     ← getMyHouseholds, getHousehold, createHousehold, joinHousehold
-│   ├── inventory.service.ts     ← CRUD + resolveItem + restoreItem + getResolvedItems
+│   ├── inventory.service.ts     ← getItems(params) paginado + searchItems + getCountsByLocation/Destination + getResolvedItems paginado + CRUD
 │   ├── location.service.ts
 │   └── user.service.ts          ← getMe, updateMe
 └── types/
     ├── api-response.ts
     ├── household.ts             ← Household + HouseholdUser (com user: { id, name, email })
     ├── inventory-item.ts        ← InventoryItem com ownerId, ownerName, status, resolvedAt
+    ├── inventory-counts.ts      ← LocationCount + DestinationCount (contadores da API)
+    ├── paged-response.ts        ← PagedResponse<T> (items, total, page, pageSize, hasMore)
     ├── location.ts
     └── user.ts                  ← UserProfile
 ```
@@ -213,6 +215,9 @@ eas build --platform android --profile preview  # APK para testar
 - Long press em qualquer item abre menu contextual genérico ancorado ao item
   (ItemMenuProvider + ItemMenuContext) — actions configuráveis por lista;
   Pertences usa Editar / Dar saída / Eliminar; toque simples continua a abrir o formulário
+- API paginada: `PagedResponse<T>` + `InventoryService` refatorado com `getItems(params)`,
+  `searchItems`, `getCountsByLocation`, `getCountsByDestination`; `useInventory` atualizado
+  para consumir respostas paginadas; `historyHasMore` adicionado ao retorno do hook
 
 ### Backlog (por ordem)
 
