@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-31 (Prompt 2)
+> Última actualização: 2026-03-31 (Prompt 3)
 
 ## 1. Visão Geral
 
@@ -60,6 +60,10 @@ HomeManager.Mobile/
 │       └── inventory/
 │           ├── index.tsx        ← Container com abas Pertences / Despensa
 │           ├── pertences.tsx    ← Tela 1: cards por localização ou destino (toggle); carrega contadores; FAB abre item-form; navega para location-detail/destination-detail/search/history
+│           ├── location-detail.tsx  ← Tela 2 por local: FlatList paginada + chips de destino + resolve/delete/edit + FAB
+│           ├── destination-detail.tsx ← Tela 2 por destino: SectionList paginada agrupada por local + resolve/delete/edit
+│           ├── search.tsx       ← Tela 3 pesquisa global: debounce 350ms, mín. 2 chars, SectionList por local
+│           └── history.tsx      ← Histórico paginado: FlatList com restore inline
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
@@ -221,6 +225,13 @@ eas build --platform android --profile preview  # APK para testar
 - Inventário refatorado — Tela 1 (`pertences.tsx`): lista de cards por local ou destino,
   toggle de vista (Eye/ArrowLeftRight), ocultar vazios, FAB para criar item;
   carrega contadores via API em vez de itens completos; navega para telas de detalhe
+- Inventário — Telas de detalhe e utilitárias:
+  - `location-detail.tsx`: FlatList paginada filtrada por destino (chips), ItemMenuProvider,
+    FAB para criar item pré-localizado; useFocusEffect limpa memória ao sair
+  - `destination-detail.tsx`: SectionList paginada agrupada por localização, ItemMenuProvider
+  - `search.tsx`: pesquisa server-side com debounce 350ms, mínimo 2 chars,
+    SectionList por local, ItemMenuProvider
+  - `history.tsx`: FlatList paginada de itens resolvidos, botão Restaurar inline
 
 ### Backlog (por ordem)
 
