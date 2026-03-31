@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-31 (Prompt 3)
+> Última actualização: 2026-03-31
 
 ## 1. Visão Geral
 
@@ -37,85 +37,149 @@ Consome a mesma API .NET 10. Autenticação via Supabase (JWT partilhado com o w
 | expo-secure-store | ~15.0.8 |
 | expo-image-picker | ~17.0.10 |
 | expo-camera | ~17.0.10 |
-| expo-image | ~2.0.0 |
+| expo-image | ~3.0.11 |
 | lucide-react-native | 0.475.0 |
 | react-native-svg | 15.12.1 |
 | @expo-google-fonts/nunito | latest |
-| expo-splash-screen | ~0.29.x |
+| expo-splash-screen | ~31.0.13 |
 
 ## 4. Estrutura de Pastas
 
 ```
 HomeManager.Mobile/
 ├── app/
-│   ├── _layout.tsx              ← Layout raiz — monta AuthProvider + HouseholdProvider + AuthGuard + Slot. Zero lógica de navegação.
+│   ├── _layout.tsx              ← Layout raiz — AuthProvider + HouseholdProvider + AuthGuard + Slot
 │   ├── (auth)/
 │   │   ├── _layout.tsx          ← Stack sem header
 │   │   └── login.tsx            ← Login + Registo + confirmação email
 │   └── (app)/
-│       ├── _layout.tsx          ← header + tab navigator (ícones Lucide); consome useHousehold() do contexto externo; useFocusEffect com isMounted ref para não disparar refreshHouseholds na primeira montagem
+│       ├── _layout.tsx          ← header + tab navigator (Lucide); useFocusEffect com isMounted ref
 │       ├── dashboard.tsx        ← Dashboard (placeholder)
 │       ├── household-setup.tsx  ← Criar / entrar em household
-│       ├── profile.tsx          ← Ecrã de perfil (nome editável, email read-only)
+│       ├── profile.tsx          ← Perfil (nome editável, email read-only)
 │       └── inventory/
+│           ├── _layout.tsx      ← Stack screenOptions={{ headerShown: false }}
 │           ├── index.tsx        ← Container com abas Pertences / Despensa
-│           ├── pertences.tsx    ← Tela 1: cards por localização ou destino (toggle); carrega contadores; FAB abre item-form; navega para location-detail/destination-detail/search/history
-│           ├── location-detail.tsx  ← Tela 2 por local: FlatList paginada + chips de destino + resolve/delete/edit + FAB
-│           ├── destination-detail.tsx ← Tela 2 por destino: SectionList paginada agrupada por local + resolve/delete/edit
-│           ├── search.tsx       ← Tela 3 pesquisa global: debounce 350ms, mín. 2 chars, SectionList por local
-│           └── history.tsx      ← Histórico paginado: FlatList com restore inline
+│           ├── pertences.tsx    ← Tela 1: lista de cards Por Local / Por Destino
+│           ├── location-detail.tsx   ← Tela 2 via local: itens paginados + chips destino
+│           ├── destination-detail.tsx ← Tela 2 via destino: itens agrupados por local
+│           ├── search.tsx       ← Tela 3: pesquisa global server-side com debounce
+│           ├── history.tsx      ← Histórico: itens resolvidos, scroll infinito, restaurar
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
-│   ├── AuthGuard.tsx            ← routing via useEffect + router.replace; usa session + hasHousehold; redireciona para household-setup se sem casa; esconde splash screen após primeira decisão de routing
-│   ├── ItemMenuProvider.tsx     ← Modal do menu contextual, consome ItemMenuContext; envolve listas
+│   ├── AuthGuard.tsx            ← routing via useEffect + router.replace; esconde splash
+│   ├── ItemMenuProvider.tsx     ← Modal menu contextual; envolve listas com long-press
 │   └── inventory/
-│       ├── SearchBar.tsx
-│       ├── DestinationFilter.tsx
-│       ├── LocationGroupCard.tsx
-│       ├── InventoryItemRow.tsx
+│       ├── SearchBar.tsx        ← Input de pesquisa reutilizável (não usado na Tela 1)
+│       ├── DestinationFilter.tsx ← Chips de filtro (não usado na Tela 1)
+│       ├── LocationGroupCard.tsx ← Não usado na Tela 1; disponível para uso futuro
+│       ├── InventoryItemRow.tsx ← Row de item com long-press para menu contextual
 │       └── modals/
 │           ├── AddLocationModal.tsx
 │           ├── EditLocationModal.tsx
 │           └── DeleteLocationConfirmModal.tsx
 ├── contexts/
-│   ├── AuthContext.tsx          ← AuthProvider + useAuth hook; sessão via onAuthStateChange; expõe session + loading
-│   ├── HouseholdContext.tsx     ← HouseholdProvider + useHousehold; carrega households quando há sessão; hasHousehold: boolean|null; limpa no logout
-│   └── ItemMenuContext.tsx      ← estado do menu contextual genérico (openMenu/closeMenu + useItemMenuState)
+│   ├── AuthContext.tsx          ← AuthProvider + useAuth; sessão via onAuthStateChange
+│   ├── HouseholdContext.tsx     ← HouseholdProvider + useHousehold; hasHousehold: boolean|null
+│   └── ItemMenuContext.tsx      ← menu contextual genérico (openMenu/closeMenu)
 ├── constants/
 │   ├── colors.ts
 │   ├── config.ts
-│   └── destinations.ts          ← Destination const+type, metadados, opções centralizadas
-```
-
-**Fontes do design system** (carregadas em `app/_layout.tsx` via `useFonts`):
-- `Nunito_800ExtraBold` — títulos/logo principal
-- `Nunito_700Bold` — subtítulos/labels do logo
-
-**Splash screen**: `backgroundColor: #f2ece0`; `SplashScreen.preventAutoHideAsync()` chamado no root layout; splash é escondida no `AuthGuard` após a primeira decisão de routing (via `useRef splashHidden` para garantir uma única chamada) — evita flash de tela branca durante verificação da sessão Supabase e garante que o redirect já está determinado antes de mostrar o ecrã.
-
-```
+│   └── destinations.ts         ← Destination const+type, metadados, opções centralizadas
 ├── hooks/
-│   └── useInventory.ts          ← items, locations, historyItems, historyHasMore, loadData, loadHistory; API paginada
+│   └── useInventory.ts         ← Legacy hook; mantido para compatibilidade mas não usado
+│                                  nas novas telas — cada tela faz o seu próprio fetch
 ├── services/
-│   ├── api.ts                   ← fetch wrapper; authTokenGetter + signOutHandler injetáveis; 401 chama signOutHandler automaticamente
-│   ├── auth.service.ts          ← Supabase auth; injecta token getter em api.ts; refresh proativo quando token expira em < 60s (singleton promise)
-│   ├── storage.service.ts       ← URLs assinadas + upload Supabase Storage
-│   ├── household.service.ts     ← getMyHouseholds, getHousehold, createHousehold, joinHousehold
-│   ├── inventory.service.ts     ← getItems(params) paginado + searchItems + getCountsByLocation/Destination + getResolvedItems paginado + CRUD
+│   ├── api.ts                  ← fetch wrapper; authTokenGetter + signOutHandler injetáveis
+│   ├── auth.service.ts         ← Supabase auth; refresh proativo (singleton promise)
+│   ├── storage.service.ts      ← URLs assinadas + upload Supabase Storage
+│   ├── household.service.ts    ← getMyHouseholds, getHousehold, createHousehold, joinHousehold
+│   ├── inventory.service.ts    ← getItems, searchItems, getCountsByLocation,
+│   │                              getCountsByDestination, getResolvedItems, CRUD completo
 │   ├── location.service.ts
-│   └── user.service.ts          ← getMe, updateMe
+│   └── user.service.ts         ← getMe, updateMe
 └── types/
     ├── api-response.ts
-    ├── household.ts             ← Household + HouseholdUser (com user: { id, name, email })
-    ├── inventory-item.ts        ← InventoryItem com ownerId, ownerName, status, resolvedAt
-    ├── inventory-counts.ts      ← LocationCount + DestinationCount (contadores da API)
-    ├── paged-response.ts        ← PagedResponse<T> (items, total, page, pageSize, hasMore)
+    ├── paged-response.ts       ← PagedResponse<T> { items, total, page, pageSize, hasMore }
+    ├── inventory-counts.ts     ← LocationCount, DestinationCount
+    ├── household.ts            ← Household + HouseholdUser
+    ├── inventory-item.ts       ← InventoryItem com ownerId, ownerName, status, resolvedAt
     ├── location.ts
-    └── user.ts                  ← UserProfile
+    └── user.ts
 ```
 
-## 5. Variáveis de Ambiente
+## 5. Arquitectura de Inventário (Pertences)
+
+### Tela 1 — `pertences.tsx`
+- Boot carrega apenas contadores via `getCountsByLocation` ou `getCountsByDestination`
+- Toggle `[👁] [⇄]` na toolbar alterna entre vista Por Local e Por Destino
+- `[👁]` oculta locais/destinos com 0 itens
+- `[⇄]` ativo (cor primária) quando em vista Por Destino
+- Card Histórico fixo no fim da lista com separador visual
+- FAB abre `ItemForm` sem localização pré-selecionada
+- CRUD de localizações (criar/editar/apagar) permanece nesta tela
+- `useFocusEffect` recarrega contadores ao voltar de Tela 2/3
+
+### Tela 2a — `location-detail.tsx`
+- Recebe `locationId` (UUID ou `"null"`) e `locationName` via query params
+- Scroll infinito — 30 itens por página, fetch automático ao scroll
+- Chips de destino no topo (Todos / Indefinido / Manter / Vender / Doar / Descartar)
+- Resolve, delete e edit de itens disponíveis via long-press (menu contextual)
+- FAB adiciona item pré-selecionado para esta localização
+- `useFocusEffect` cleanup limpa itens e fotos ao sair
+
+### Tela 2b — `destination-detail.tsx`
+- Recebe `destination` (valor ou `"null"`) e `label` via query params
+- Scroll infinito — 30 itens por página
+- Itens agrupados por localização com divisores estáticos (`SectionList`)
+- Resolve, delete e edit via long-press
+- `useFocusEffect` cleanup
+
+### Tela 3 — `search.tsx`
+- Input com debounce de 350ms — mínimo 2 caracteres para disparar fetch
+- `InventoryService.searchItems` — pesquisa server-side por nome (`ILike`)
+- Resultados agrupados por localização com `SectionList` e divisores estáticos
+- Scroll infinito por página
+- Resolve, delete e edit via long-press
+- `useFocusEffect` cleanup limpa query, itens e fotos ao sair
+
+### Histórico — `history.tsx`
+- Lista flat cronológica (mais recente primeiro) de itens com `status=resolved`
+- Scroll infinito — 30 por página
+- Cada item mostra: nome, localização de origem, badge de destino, data PT
+- Botão Restaurar chama `restoreItem` e recarrega a lista
+- `useFocusEffect` cleanup
+
+### Padrão de memória
+- Cada tela tem o seu próprio estado `items[]` e `photoUrls{}`
+- `useFocusEffect` com cleanup destrói estes estados ao sair
+- Localizações e contadores da Tela 1 ficam em memória (são leves)
+- `photoUrls` acumulam durante a sessão da tela — são descartados no cleanup
+
+## 6. API Contract (resumo)
+
+Todos os endpoints requerem `Authorization: Bearer {token}`.
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /inventory/items` | Itens paginados; params: `householdId`, `locationId`, `destination`, `status`, `page`, `pageSize` |
+| `GET /inventory/items/search` | Pesquisa por nome; params: `householdId`, `q` (≥2 chars), `page`, `pageSize` |
+| `GET /inventory/items/counts/by-location` | Contadores por localização; param: `householdId` |
+| `GET /inventory/items/counts/by-destination` | Contadores por destino; param: `householdId` |
+| `GET /inventory/items/{id}` | Item único |
+| `POST /inventory/items` | Criar item |
+| `PUT /inventory/items/{id}` | Actualizar item (204) |
+| `DELETE /inventory/items/{id}` | Apagar item (204) |
+| `POST /inventory/items/{id}/resolve` | Dar saída `{ destination }` |
+| `POST /inventory/items/{id}/restore` | Restaurar item |
+
+`PagedResponse<T>`: `{ items[], total, page, pageSize, hasMore }`
+
+`locationId="null"` como string → filtra itens sem localização.
+`destination="null"` como string → filtra itens sem destino.
+
+## 7. Variáveis de Ambiente
 
 | Variável | Descrição |
 |----------|-----------|
@@ -123,122 +187,77 @@ HomeManager.Mobile/
 | EXPO_PUBLIC_SUPABASE_URL | URL do projecto Supabase |
 | EXPO_PUBLIC_SUPABASE_ANON_KEY | Chave anónima Supabase |
 
-## 6. Regras de Desenvolvimento
+## 8. Regras de Desenvolvimento
 
 - Branch principal é `main` — push após cada tarefa
 - SEMPRE usar `npx expo install` para pacotes nativos
 - `npm install` apenas para JS puro (ex: @supabase/supabase-js)
 - `.npmrc` tem `legacy-peer-deps=true` — não remover
-- Não alterar app.json, eas.json, .npmrc, package.json sem razão explícita
-- UI em Português (PT). Código em Inglês.
+- Não alterar `app.json`, `eas.json`, `.npmrc`, `package.json` sem razão explícita
+- UI em Português (PT-BR). Código em Inglês.
 - Manter este ficheiro actualizado no final de cada tarefa
 
-## 7. Comandos
+## 9. Comandos
 
 ```bash
-npx expo start          # dev com QR code
-npx expo start --clear  # dev limpando cache Metro (usar após mudanças de dependências nativas)
-npx expo-doctor         # validar dependências
-eas build --platform android --profile preview  # APK para testar
+npx expo start                                          # dev com QR code
+npx expo start --clear                                  # dev limpando cache Metro
+npx expo-doctor                                         # validar dependências
+eas build --platform android --profile preview          # APK para testar
 ```
 
-## 8. Gotchas React Native (bugs já encontrados)
+## 10. Gotchas React Native (bugs já encontrados)
 
 | Problema | Causa | Solução aplicada |
 |----------|-------|-----------------|
 | `crypto.randomUUID()` não existe | API Web não disponível no RN | `Date.now() + Math.random().toString(36).substring(2,10)` |
-| Upload Supabase Storage falha com "Network request failed" | SDK não aceita `Blob` no RN | Usar `response.arrayBuffer()` em vez de `response.blob()` |
-| SecureStore com chunks corrompida em background | Escritas não atómicas quando iOS suspende o app a meio do refresh token | Migrado para `AsyncStorage` (atómico, sem limite de tamanho) + `AppState` listener para `stopAutoRefresh` em background |
-| `supabase.auth.signOut()` bloqueia indefinidamente | `refreshSession()` no boot mantém o lock interno do Supabase | Não chamar `refreshSession()` no boot — usar apenas `getSession()` |
-| lucide-react-native v1.0.1 quebrado | `dist/cjs/lucide-react-native.js` era directório em vez de ficheiro | Fixado na versão 0.475.0 |
-| Sessão expirada deixava app em estado intermédio sem redirect para login | Estado de auth e households misturado no mesmo contexto criava condições de corrida | Separado em `AuthProvider` (sessão pura via `onAuthStateChange`) + `HouseholdProvider` (carrega quando há sessão) + `AuthGuard` (`useEffect` + `router.replace` com guards por `authLoading`/`householdLoading`) |
-| Menu contextual desalinhado e cortado em itens no fundo do ecrã | `measure` devolve `pageY` incluindo a status bar; sem lógica de flip quando o espaço abaixo é insuficiente | Subtrair `STATUS_BAR_HEIGHT` ao `pageY`; calcular `spaceBelow` vs `menuEstimatedHeight` — se insuficiente, abrir acima do item (`opensAbove`) |
-| Splash screen mostrada antes do redirect estar determinado | `SplashScreen.hideAsync()` em `_layout.tsx` disparava quando auth/fontes carregavam, antes do AuthGuard decidir o destino | Movido `hideAsync()` para `AuthGuard` com `useRef splashHidden` — só esconde após a primeira decisão de routing |
+| Upload Supabase Storage falha | SDK não aceita `Blob` no RN | Usar `response.arrayBuffer()` |
+| SecureStore corrompida em background | Escritas não atómicas | Migrado para `AsyncStorage` |
+| `supabase.auth.signOut()` bloqueia | `refreshSession()` mantém lock | Não chamar `refreshSession()` no boot |
+| lucide-react-native v1.0.1 quebrado | dist era directório | Fixado em 0.475.0 |
+| Sessão expirada sem redirect | Estado auth+households misturado | Separado em AuthProvider + HouseholdProvider + AuthGuard |
+| Menu contextual desalinhado | `measure` inclui status bar | Subtrair `STATUS_BAR_HEIGHT` ao `pageY` |
+| Splash antes do redirect | `hideAsync()` disparava cedo | Movido para AuthGuard com `useRef splashHidden` |
+| `CropImageActivity` não registada | `expo-image-picker` ausente dos `plugins` no `app.json` | Adicionado ao array `plugins` — requer novo build EAS |
 
-## 9. Diferenças vs Web (Angular)
+## 11. Estado Actual
+
+### Feito
+- Projecto Expo SDK 54 funcional (validado com expo-doctor)
+- EAS configurado; `expo-image-picker` no array `plugins` do `app.json`
+- Autenticação completa (login, registo, confirmação email, refresh proativo)
+- Household Setup — criar ou entrar via código de convite
+- Shell: header com seletor de household, avatar, tab bar Lucide
+- Perfil — nome editável, email read-only
+- Inventário — Pertences:
+  - Tela 1: lista de cards Por Local / Por Destino com toggle, olho, FAB
+  - Tela 2a: detalhe por local com chips de destino, scroll infinito, CRUD
+  - Tela 2b: detalhe por destino com divisores por local, scroll infinito, CRUD
+  - Tela 3: pesquisa global server-side com debounce, divisores por local
+  - Histórico: lista flat paginada com restaurar
+  - Item form: câmara nativa, upload Supabase Storage, picker de dono, dar saída
+  - Menu contextual via long-press (editar / dar saída / eliminar)
+  - CRUD de localizações (criar / editar / apagar) na Tela 1
+- Despensa: placeholder "Em breve"
+- Dashboard: placeholder
+
+### Backlog (por ordem)
+1. **Dashboard** — ecrã ainda placeholder
+2. **Despensa** — aba ainda placeholder
+3. **Swipe down para fechar item-form** — PanResponder no handleBar
+4. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
+5. **ownerName nas telas de detalhe** — resolver client-side a partir dos membros
+
+## 12. Diferenças vs Web (Angular)
 
 | Aspecto | Web | Mobile |
 |---------|-----|--------|
 | Estado | Signals | useState + hooks |
 | HTTP | HttpClient + interceptor | fetch() + api.ts |
-| Auth storage | localStorage | AsyncStorage (sessão Supabase) |
-| Câmara | input[capture] problemático | expo-image-picker nativo |
+| Auth storage | localStorage | AsyncStorage |
+| Câmara | input[capture] | expo-image-picker nativo |
 | Routing | Angular Router | Expo Router file-based |
 | Styling | Tailwind v4 | StyleSheet.create() |
-| Listas longas | *ngFor | FlatList (virtualizado) |
+| Listas longas | *ngFor | FlatList / SectionList virtualizados |
 | Modais | div absoluta | Modal RN |
-
-## 10. Estado Actual
-
-### Feito
-- Projecto Expo SDK 54 funcional (validado com expo-doctor)
-- EAS configurado
-- .npmrc com legacy-peer-deps=true
-- Serviços: api.ts, auth.service.ts, inventory.service.ts,
-  location.service.ts, household.service.ts, storage.service.ts
-- Tipos TypeScript: Household + HouseholdUser, Location, InventoryItem
-  (com ownerId, ownerName, status, resolvedAt), ApiResponse
-  — categorias removidas (sem category.service.ts nem types/category.ts)
-- Navegação base com Expo Router (root layout com auth + household redirect)
-- Design system alinhado com o web (Colors + StyleSheet)
-- .env configurado localmente, .env.example no repo
-- Sessão Supabase via AsyncStorage (substituiu SecureStore + chunking)
-- AppState listener — stopAutoRefresh em background, startAutoRefresh em foreground
-- Arquitetura de auth/routing refatorada:
-  - `AuthProvider` — sessão pura via `onAuthStateChange`, expõe `session` + `loading`
-  - `HouseholdProvider` — carrega households quando há sessão; `hasHousehold: boolean|null`; limpa estado no logout
-  - `AuthGuard` — `useEffect + router.replace`; guards com `authLoading`/`householdLoading`; redireciona para `household-setup` quando sem casa
-  - `api.ts` — `authTokenGetter`/`signOutHandler` injetáveis; 401 faz signOut automático
-  - `auth.service.ts` — refresh proativo quando token expira em < 60s (singleton promise para evitar race)
-- Ecrã de Login/Registo com confirmação de email
-- Household Setup — criar ou entrar via código de convite
-- Shell da app: header com seletor de household (+ adicionar casa),
-  avatar com logout, tab bar com ícones Lucide (Home / Package, strokeWidth 2/1.5)
-- Inventário — aba Pertences:
-  - Lista agrupada por local com pesquisa e filtros por destino
-  - Fotos com URLs assinadas (bucket privado Supabase Storage)
-  - Linha colorida por destino, header de local com ícone e contador
-  - Botão adicionar por local, grupos minimizáveis, botão criar local
-  - Gestão de locais inline (editar/excluir via menu ⋮)
-  - Todos os locais visíveis mesmo vazios
-  - Grupos começam todos colapsados (expandedLocations Set vazio por omissão)
-  - Toolbar: ocultar grupos vazios (Eye/EyeOff) + colapsar/expandir tudo (Lucide)
-  - Histórico: modal com itens resolvidos, badges de destino, data em PT, botão Restaurar
-  - ownerName resolvido client-side a partir dos membros da casa
-- Formulário de item:
-  - Criar/editar com câmara nativa e upload para Supabase Storage
-  - Picker de dono (visível apenas com >1 membro na casa)
-  - Botão "Dar saída do item" (âmbar) com picker Vender/Doar/Descartar
-    e destaque ✓ para o destino pré-selecionado
-  - Erros de CRUD com feedback visível ao utilizador
-- constants/destinations.ts — Destination const+type centralizado,
-  metadados (label, badge, barColor), opções para picker/filtro/resolve
-  (elimina duplicação entre InventoryItemRow, item-form, pertences)
-- Ecrã de Perfil — nome editável, email read-only, avatar com inicial;
-  acessível via "Perfil" no modal do avatar (header); tab oculta com href:null
-- Long press em qualquer item abre menu contextual genérico ancorado ao item
-  (ItemMenuProvider + ItemMenuContext) — actions configuráveis por lista;
-  Pertences usa Editar / Dar saída / Eliminar; toque simples continua a abrir o formulário
-- API paginada: `PagedResponse<T>` + `InventoryService` refatorado com `getItems(params)`,
-  `searchItems`, `getCountsByLocation`, `getCountsByDestination`; `useInventory` atualizado
-  para consumir respostas paginadas; `historyHasMore` adicionado ao retorno do hook
-- Inventário refatorado — Tela 1 (`pertences.tsx`): lista de cards por local ou destino,
-  toggle de vista (Eye/ArrowLeftRight), ocultar vazios, FAB para criar item;
-  carrega contadores via API em vez de itens completos; navega para telas de detalhe
-- Inventário — Telas de detalhe e utilitárias:
-  - `location-detail.tsx`: FlatList paginada filtrada por destino (chips), ItemMenuProvider,
-    FAB para criar item pré-localizado; useFocusEffect limpa memória ao sair
-  - `destination-detail.tsx`: SectionList paginada agrupada por localização, ItemMenuProvider
-  - `search.tsx`: pesquisa server-side com debounce 350ms, mínimo 2 chars,
-    SectionList por local, ItemMenuProvider
-  - `history.tsx`: FlatList paginada de itens resolvidos, botão Restaurar inline
-
-### Backlog (por ordem)
-
-1. **Dashboard** — ecrã ainda placeholder
-2. **Despensa** — aba ainda placeholder
-3. **Swipe down para fechar item-form** — PanResponder no handleBar com
-   threshold 80px; requer mudar Modal para `transparent={true}` + backdrop,
-   removendo `presentationStyle="pageSheet"`
-4. **Variáveis de ambiente via `eas secret:create`** — para builds EAS
-   as env vars têm de ser registadas como secrets no EAS Cloud
+| Inventário | grupos colapsáveis client-side | navegação por telas + server-side |
