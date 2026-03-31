@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-31
+> Última actualização: 2026-03-31 (UI/UX fixes inventário)
 
 ## 1. Visão Geral
 
@@ -120,11 +120,15 @@ HomeManager.Mobile/
 - FAB abre `ItemForm` sem localização pré-selecionada
 - CRUD de localizações (criar/editar/apagar) permanece nesta tela
 - `useFocusEffect` recarrega contadores ao voltar de Tela 2/3
+- Loading usa skeleton de 5 cards fantasma (`Colors.border`) em vez de `ActivityIndicator`
+- Ícone do card usa `numberOfLines={1}` para prevenir wrap com emojis múltiplos
+- Botão ⋮ usa `LocationCard` com `useRef<View>` + `measure()` para posicionamento dinâmico do dropdown (flip acima/abaixo conforme espaço disponível); subtrai `STATUS_BAR_HEIGHT` de `pageY`
 
 ### Tela 2a — `location-detail.tsx`
 - Recebe `locationId` (UUID ou `"null"`) e `locationName` via query params
 - Scroll infinito — 30 itens por página, fetch automático ao scroll
 - Chips de destino no topo (Todos / Indefinido / Manter / Vender / Doar / Descartar)
+- Chips usam `flexShrink: 0` + `marginRight: 8` (não `gap`) para não quebrarem
 - Resolve, delete e edit de itens disponíveis via long-press (menu contextual)
 - FAB adiciona item pré-selecionado para esta localização
 - `useFocusEffect` cleanup limpa itens e fotos ao sair
@@ -133,6 +137,7 @@ HomeManager.Mobile/
 - Recebe `destination` (valor ou `"null"`) e `label` via query params
 - Scroll infinito — 30 itens por página
 - Itens agrupados por localização com divisores estáticos (`SectionList`)
+- `sectionHeader` tem `marginTop: 16` para separação visual clara entre secções
 - Resolve, delete e edit via long-press
 - `useFocusEffect` cleanup
 
@@ -216,7 +221,9 @@ eas build --platform android --profile preview          # APK para testar
 | `supabase.auth.signOut()` bloqueia | `refreshSession()` mantém lock | Não chamar `refreshSession()` no boot |
 | lucide-react-native v1.0.1 quebrado | dist era directório | Fixado em 0.475.0 |
 | Sessão expirada sem redirect | Estado auth+households misturado | Separado em AuthProvider + HouseholdProvider + AuthGuard |
-| Menu contextual desalinhado | `measure` inclui status bar | Subtrair `STATUS_BAR_HEIGHT` ao `pageY` |
+| Menu contextual desalinhado | `measure` inclui status bar | Subtrair `STATUS_BAR_HEIGHT` ao `pageY`; usar componente com `useRef<View>` para aceder a `measure()` |
+| Chips de filtro quebram em FlatList horizontal | `gap` no container comprime chips em RN | Usar `flexShrink: 0` no chip + `marginRight` em vez de `gap`; `flexGrow: 0` no FlatList; sem `alignItems` no `contentContainerStyle` |
+| Emojis múltiplos no ícone quebram o card | Text wraps para segunda linha dentro de container fixo | `numberOfLines={1}` no Text do ícone |
 | Splash antes do redirect | `hideAsync()` disparava cedo | Movido para AuthGuard com `useRef splashHidden` |
 | `CropImageActivity` não registada | `expo-image-picker` ausente dos `plugins` no `app.json` | Adicionado ao array `plugins` — requer novo build EAS |
 
@@ -238,6 +245,8 @@ eas build --platform android --profile preview          # APK para testar
   - Item form: câmara nativa, upload Supabase Storage, picker de dono, dar saída
   - Menu contextual via long-press (editar / dar saída / eliminar)
   - CRUD de localizações (criar / editar / apagar) na Tela 1
+  - UI/UX: skeleton loading (Tela 1 + Tela 2a), menu ⋮ dinâmico, chips corrigidos (`minHeight`/`minWidth`), headers compactos, secções com margem
+  - `InventoryItemRow`: `minHeight: 80`, foto 56×56, divider inset (`marginHorizontal: 5`) em vez de border full-width
 - Despensa: placeholder "Em breve"
 - Dashboard: placeholder
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -61,6 +61,8 @@ export default function LocationDetailScreen() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
 
+  const fetchingRef = useRef(false);
+
   // ── Resolve / Delete ──
   const [resolveTargetItem, setResolveTargetItem] = useState<InventoryItem | null>(null);
   const [showItemResolvePicker, setShowItemResolvePicker] = useState(false);
@@ -81,6 +83,8 @@ export default function LocationDetailScreen() {
 
   async function loadPage(pageNum: number, reset = false) {
     if (!selectedHousehold) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (pageNum === 1) setLoading(true);
     else setLoadingMore(true);
     setError(null);
@@ -103,6 +107,7 @@ export default function LocationDetailScreen() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar itens.');
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
@@ -194,6 +199,7 @@ export default function LocationDetailScreen() {
         {/* Chips de destino */}
         <FlatList
           horizontal
+          style={styles.chipsRow}
           data={DEST_FILTER_CHIPS}
           keyExtractor={(chip) => chip.label}
           showsHorizontalScrollIndicator={false}
@@ -206,6 +212,7 @@ export default function LocationDetailScreen() {
               <Text style={[styles.chipText, selectedChip === chip.label && styles.chipTextActive]}>
                 {chip.label}
               </Text>
+              <View style={styles.chipdivider} />
             </TouchableOpacity>
           )}
         />
@@ -218,8 +225,16 @@ export default function LocationDetailScreen() {
 
         {/* Lista */}
         {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+          <View style={styles.skeletonContainer}>
+            {[...Array(8)].map((_, i) => (
+              <View key={i} style={styles.skeletonRow}>
+                <View style={styles.skeletonPhoto} />
+                <View style={styles.skeletonInfo}>
+                  <View style={styles.skeletonName} />
+                  <View style={styles.skeletonBadge} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : error ? (
           <View style={styles.centered}>
@@ -355,7 +370,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 8,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -363,19 +378,49 @@ const styles = StyleSheet.create({
   backBtn: { marginRight: 8, padding: 4 },
   backText: { fontSize: 28, color: Colors.primary, lineHeight: 32 },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: Colors.textPrimary },
-  chipsContainer: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  chipsRow: { flexGrow: 0 },
+  chipsContainer: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 10, 
+    alignContent: 'flex-start',
+ },
   chip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
+    flexShrink: 0,
+    marginRight: 8,
+    minWidth: 80,
+    minHeight: 32,
+    alignItems: 'center',
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   chipTextActive: { color: '#fff' },
+  chipdivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 5,
+  },
   listContent: { paddingBottom: 100 },
+  skeletonContainer: { flex: 1, paddingTop: 8 },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    opacity: 0.6,
+  },
+  skeletonPhoto: { width: 60, height: 60, borderRadius: 8, backgroundColor: Colors.border, flexShrink: 0 },
+  skeletonInfo: { flex: 1, gap: 8 },
+  skeletonName: { height: 14, borderRadius: 6, backgroundColor: Colors.border },
+  skeletonBadge: { width: 60, height: 20, borderRadius: 10, backgroundColor: Colors.border },
   actionErrorBox: {
     marginHorizontal: 16,
     marginBottom: 8,

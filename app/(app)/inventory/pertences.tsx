@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   FlatList,
   Modal,
   StyleSheet,
-  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Eye, EyeOff, ArrowLeftRight } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -19,12 +19,65 @@ import { getDestinationMeta } from '../../../constants/destinations';
 import AddLocationModal from '@/components/inventory/modals/AddLocationModal';
 import EditLocationModal from '@/components/inventory/modals/EditLocationModal';
 import DeleteLocationConfirmModal from '@/components/inventory/modals/DeleteLocationConfirmModal';
+import { STATUS_BAR_HEIGHT } from '@/app/(app)/_layout';
 import type { LocationCount, DestinationCount } from '../../../types/inventory-counts';
 import type { Location } from '../../../types/location';
 
 // ─── View mode ────────────────────────────────────────────────────────────────
 
 type ViewMode = 'location' | 'destination';
+
+// ─── LocationCard ─────────────────────────────────────────────────────────────
+
+const MENU_ESTIMATED_HEIGHT = 44 * 2 + 8; // 2 options + divider
+
+function LocationCard({
+  lc,
+  onPress,
+  onMenuOpen,
+}: {
+  lc: LocationCount;
+  onPress: () => void;
+  onMenuOpen?: (id: string, position: { top: number; right: number }) => void;
+}) {
+  const menuBtnRef = useRef<View>(null);
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.cardIconWrap}>
+        <Text style={styles.cardIcon} numberOfLines={1}>{lc.icon ?? '📦'}</Text>
+      </View>
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardName}>{lc.locationName}</Text>
+      </View>
+      <View style={styles.cardBadge}>
+        <Text style={styles.cardBadgeText}>{lc.count}</Text>
+      </View>
+      <Text style={styles.cardArrow}>›</Text>
+      {onMenuOpen && (
+        <View ref={menuBtnRef} collapsable={false}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => {
+              menuBtnRef.current?.measure((_x, _y, _w, _h, _pageX, pageY) => {
+                const adjustedY = pageY - STATUS_BAR_HEIGHT;
+                const screenH = Dimensions.get('window').height - STATUS_BAR_HEIGHT;
+                const spaceBelow = screenH - (adjustedY + _h);
+                const top =
+                  spaceBelow >= MENU_ESTIMATED_HEIGHT
+                    ? adjustedY + _h + 4
+                    : adjustedY - MENU_ESTIMATED_HEIGHT - 4;
+                onMenuOpen(lc.locationId!, { top, right: 16 });
+              });
+            }}
+          >
+            <Text style={styles.menuDots}>⋮</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -168,8 +221,8 @@ export default function PertencesTab() {
     if (hideEmpty && lc.count === 0) return null;
     const isNull = lc.locationId === null;
     return (
-      <TouchableOpacity
-        style={styles.card}
+      <LocationCard
+        lc={lc}
         onPress={() => {
           if (isNull) {
             router.push('/inventory/location-detail?locationId=null&locationName=Sem+localização');
@@ -179,32 +232,11 @@ export default function PertencesTab() {
             );
           }
         }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardIconWrap}>
-          <Text style={styles.cardIcon}>{lc.icon ?? '📦'}</Text>
-        </View>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardName}>{lc.locationName}</Text>
-        </View>
-        <View style={styles.cardBadge}>
-          <Text style={styles.cardBadgeText}>{lc.count}</Text>
-        </View>
-        <Text style={styles.cardArrow}>›</Text>
-        {/* Menu ⋮ — só para localizações reais (não "Sem localização") */}
-        {!isNull && (
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              setActiveLocationMenu(lc.locationId);
-              setMenuPosition({ top: 200, right: 16 });
-            }}
-          >
-            <Text style={styles.menuDots}>⋮</Text>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
+        onMenuOpen={isNull ? undefined : (id, pos) => {
+          setActiveLocationMenu(id);
+          setMenuPosition(pos);
+        }}
+      />
     );
   }
 
@@ -271,8 +303,14 @@ export default function PertencesTab() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.root, { paddingTop: 8 }]}>
+        {[...Array(5)].map((_, i) => (
+          <View key={i} style={[styles.card, styles.skeletonCard]}>
+            <View style={styles.skeletonIcon} />
+            <View style={styles.skeletonName} />
+            <View style={styles.skeletonBadge} />
+          </View>
+        ))}
       </View>
     );
   }
@@ -619,4 +657,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  skeletonCard: { opacity: 0.6, marginHorizontal: 16 },
+  skeletonIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: Colors.border },
+  skeletonName: { flex: 1, height: 14, borderRadius: 6, backgroundColor: Colors.border },
+  skeletonBadge: { width: 32, height: 22, borderRadius: 11, backgroundColor: Colors.border },
 });

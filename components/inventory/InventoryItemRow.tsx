@@ -30,7 +30,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
   return (
     <View ref={rowRef}>
       <TouchableOpacity
-        style={[itemStyles.row, !isLast && itemStyles.rowBorder]}
+        style={itemStyles.row}
         onPress={onEdit}
         delayLongPress={400}
         onLongPress={() => {
@@ -44,7 +44,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
         }}
         activeOpacity={0.7}
       >
-        {/* Colored left bar */}
+        {/* Barra colorida */}
         <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
 
         {/* Photo */}
@@ -86,6 +86,7 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
           )}
         </View>
       </TouchableOpacity>
+      <View style={itemStyles.divider} />
     </View>
   );
 }
@@ -98,12 +99,14 @@ const itemStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     gap: 12,
+    minHeight: 80,
   },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 5,
   },
   colorBar: {
     position: 'absolute',
@@ -115,13 +118,13 @@ const itemStyles = StyleSheet.create({
     borderBottomRightRadius: 2,
   },
   photo: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     borderRadius: 8,
   },
   photoPlaceholder: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     borderRadius: 8,
     backgroundColor: '#f3f4f6',
     justifyContent: 'center',
