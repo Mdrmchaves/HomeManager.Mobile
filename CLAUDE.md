@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code.
 > Actualizar no final de cada tarefa relevante.
-> Última actualização: 2026-03-31
+> Última actualização: 2026-03-31 (Prompt 2)
 
 ## 1. Visão Geral
 
@@ -59,7 +59,7 @@ HomeManager.Mobile/
 │       ├── profile.tsx          ← Ecrã de perfil (nome editável, email read-only)
 │       └── inventory/
 │           ├── index.tsx        ← Container com abas Pertences / Despensa
-│           ├── pertences.tsx    ← Lista agrupada por local com toolbar, histórico, ownerName
+│           ├── pertences.tsx    ← Tela 1: cards por localização ou destino (toggle); carrega contadores; FAB abre item-form; navega para location-detail/destination-detail/search/history
 │           ├── despensa.tsx     ← Placeholder "Em breve"
 │           └── item-form.tsx    ← Modal criar/editar item (câmara, dono, dar saída)
 ├── components/
@@ -218,6 +218,9 @@ eas build --platform android --profile preview  # APK para testar
 - API paginada: `PagedResponse<T>` + `InventoryService` refatorado com `getItems(params)`,
   `searchItems`, `getCountsByLocation`, `getCountsByDestination`; `useInventory` atualizado
   para consumir respostas paginadas; `historyHasMore` adicionado ao retorno do hook
+- Inventário refatorado — Tela 1 (`pertences.tsx`): lista de cards por local ou destino,
+  toggle de vista (Eye/ArrowLeftRight), ocultar vazios, FAB para criar item;
+  carrega contadores via API em vez de itens completos; navega para telas de detalhe
 
 ### Backlog (por ordem)
 
