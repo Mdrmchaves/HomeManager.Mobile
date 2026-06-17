@@ -12,6 +12,7 @@ export interface Household {
   id: string;
   name: string;
   inviteCode: string;
+  defaultCurrency: string;
   createdAt: string;
   updatedAt: string;
   householdUsers?: HouseholdUser[];

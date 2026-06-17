@@ -110,6 +110,20 @@ function AppHeader({ userEmail }: { userEmail: string }) {
 
               <View style={modalStyles.divider} />
 
+              {selectedHousehold && (
+                <TouchableOpacity
+                  style={modalStyles.addButton}
+                  onPress={() => {
+                    setShowHouseholdModal(false);
+                    router.push('/(app)/household-settings');
+                  }}
+                >
+                  <Text style={modalStyles.settingsButtonText}>⚙ Configurações da casa</Text>
+                </TouchableOpacity>
+              )}
+
+              <View style={modalStyles.divider} />
+
               <TouchableOpacity
                 style={modalStyles.addButton}
                 onPress={() => {
@@ -240,6 +254,7 @@ export default function AppLayout() {
             }}
           />
           <Tabs.Screen name="household-setup" options={{ href: null }} />
+          <Tabs.Screen name="household-settings" options={{ href: null }} />
           <Tabs.Screen name="profile" options={{ href: null }} />
         </Tabs>
       </View>
@@ -337,6 +352,11 @@ const modalStyles = StyleSheet.create({
   },
   addButton: {
     paddingVertical: 14,
+  },
+  settingsButtonText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
   addButtonText: {
     fontSize: 15,

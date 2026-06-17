@@ -17,4 +17,14 @@ export const HouseholdService = {
     api
       .post<ApiResponse<Household>>(`/household/join/${inviteCode}`, {})
       .then((r) => r.data),
+
+  updateSettings: (id: string, settings: { name?: string; defaultCurrency?: string }) =>
+    api
+      .patch<ApiResponse<Household>>(`/household/${id}/settings`, settings)
+      .then((r) => r.data),
+
+  deleteHousehold: (id: string) =>
+    api
+      .delete<ApiResponse<boolean>>(`/household/${id}`)
+      .then((r) => r.data),
 };

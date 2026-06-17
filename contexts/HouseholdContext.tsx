@@ -39,8 +39,10 @@ export function HouseholdProvider({ children }: { children: React.ReactNode }) {
     try {
       const list = await HouseholdService.getMyHouseholds();
       setHouseholds(list);
-      if (list.length > 0 && !selectedRef.current) {
-        setSelectedHousehold(list[0]);
+      if (list.length > 0) {
+        const current = selectedRef.current;
+        const updated = current ? list.find((h) => h.id === current.id) : null;
+        setSelectedHousehold(updated ?? list[0]);
       }
     } catch {
       setHouseholds([]);
