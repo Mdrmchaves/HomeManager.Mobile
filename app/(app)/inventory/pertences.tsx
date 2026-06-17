@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { Eye, EyeOff, ArrowLeftRight } from 'lucide-react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
+import { usePertences } from '../../../contexts/PertencesContext';
 import ItemForm from './item-form';
 import { LocationService } from '../../../services/location.service';
-import { InventoryService } from '../../../services/inventory.service';
 import { Colors } from '../../../constants/colors';
-import { getDestinationMeta } from '../../../constants/destinations';
+import { getDestinationMeta, Destination } from '../../../constants/destinations';
 import AddLocationModal from '@/components/inventory/modals/AddLocationModal';
 import EditLocationModal from '@/components/inventory/modals/EditLocationModal';
 import DeleteLocationConfirmModal from '@/components/inventory/modals/DeleteLocationConfirmModal';
@@ -84,16 +84,12 @@ function LocationCard({
 export default function PertencesTab() {
   const router = useRouter();
   const { selectedHousehold } = useHousehold();
+  const { locations, locationCounts, destinationCounts, countsLoading: loading, countsError: error, refreshCounts, refreshLocations } = usePertences();
 
   // ── Vista ──
   const [viewMode, setViewMode] = useState<ViewMode>('location');
 
-  // ── Dados ──
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [locationCounts, setLocationCounts] = useState<LocationCount[]>([]);
-  const [destinationCounts, setDestinationCounts] = useState<DestinationCount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // ── UI ──
   const [hideEmpty, setHideEmpty] = useState(true);
 
   // ── Location CRUD ──
@@ -111,53 +107,34 @@ export default function PertencesTab() {
   // ── Item form (FAB) ──
   const [showItemForm, setShowItemForm] = useState(false);
 
-  // ── Carregamento ──────────────────────────────────────────────────────────
+  // ── Listas completas (inclui entradas com count=0) ──────────────────────────
 
-  async function loadLocations() {
-    if (!selectedHousehold) return;
-    try {
-      const locs = await LocationService.getLocations(selectedHousehold.id);
-      setLocations(locs);
-    } catch {
-      // localizações não críticas para o render
-    }
-  }
+  const mergedLocationCounts = useMemo<LocationCount[]>(() => {
+    const countsMap = new Map(locationCounts.map((lc) => [lc.locationId, lc]));
+    const result: LocationCount[] = locations.map((loc) =>
+      countsMap.get(loc.id) ?? { locationId: loc.id, locationName: loc.name, icon: loc.icon ?? null, count: 0 }
+    );
+    const nullEntry = countsMap.get(null);
+    if (nullEntry) result.push(nullEntry);
+    return result;
+  }, [locations, locationCounts]);
 
-  async function loadCounts() {
-    if (!selectedHousehold) return;
-    setLoading(true);
-    setError(null);
-    try {
-      if (viewMode === 'location') {
-        const counts = await InventoryService.getCountsByLocation(selectedHousehold.id);
-        setLocationCounts(counts);
-      } else {
-        const counts = await InventoryService.getCountsByDestination(selectedHousehold.id);
-        setDestinationCounts(counts);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar contadores.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const mergedDestinationCounts = useMemo<DestinationCount[]>(() => {
+    const countsMap = new Map(destinationCounts.map((dc) => [dc.destination, dc]));
+    const known = [Destination.Keep, Destination.Sell, Destination.Donate, Destination.Trash] as const;
+    const result: DestinationCount[] = known.map((dest) =>
+      countsMap.get(dest) ?? { destination: dest, count: 0 }
+    );
+    result.push(countsMap.get(null) ?? { destination: null, count: 0 });
+    return result;
+  }, [destinationCounts]);
 
-  // Carrega localizações uma vez no boot do household
-  useEffect(() => {
-    loadLocations();
-  }, [selectedHousehold?.id]);
-
-  // Carrega contadores sempre que viewMode ou household muda
-  useEffect(() => {
-    loadCounts();
-  }, [selectedHousehold?.id, viewMode]);
-
-  // Recarrega contadores ao voltar para esta tela (ex: após editar item na Tela 2)
-  useFocusEffect(
-    useCallback(() => {
-      loadCounts();
-    }, [selectedHousehold?.id, viewMode])
-  );
+  const listData = useMemo(() => {
+    const base = viewMode === 'location'
+      ? (mergedLocationCounts as Array<LocationCount | DestinationCount>)
+      : (mergedDestinationCounts as Array<LocationCount | DestinationCount>);
+    return hideEmpty ? base.filter((item) => item.count > 0) : base;
+  }, [viewMode, mergedLocationCounts, mergedDestinationCounts, hideEmpty]);
 
   // ── Location CRUD handlers ─────────────────────────────────────────────────
 
@@ -168,7 +145,7 @@ export default function PertencesTab() {
     try {
       await LocationService.createLocation(selectedHousehold.id, name, icon || undefined);
       setShowNewLocationModal(false);
-      await Promise.all([loadLocations(), loadCounts()]);
+      await Promise.all([refreshLocations(), refreshCounts()]);
     } catch {
       setLocationError('Erro ao criar localização.');
     } finally {
@@ -184,7 +161,7 @@ export default function PertencesTab() {
       await LocationService.updateLocation(editingLocation.id, name, icon || undefined);
       setShowEditLocationModal(false);
       setEditingLocation(null);
-      await Promise.all([loadLocations(), loadCounts()]);
+      await Promise.all([refreshLocations(), refreshCounts()]);
     } catch {
       setLocationError('Erro ao editar localização.');
     } finally {
@@ -200,7 +177,7 @@ export default function PertencesTab() {
       await LocationService.deleteLocation(locationToDelete.id);
       setShowDeleteLocationConfirm(false);
       setLocationToDelete(null);
-      await Promise.all([loadLocations(), loadCounts()]);
+      await Promise.all([refreshLocations(), refreshCounts()]);
     } catch {
       setLocationError('Erro ao apagar localização.');
     } finally {
@@ -218,7 +195,6 @@ export default function PertencesTab() {
   // ── Render helpers ─────────────────────────────────────────────────────────
 
   function renderLocationCard({ item: lc }: { item: LocationCount }) {
-    if (hideEmpty && lc.count === 0) return null;
     const isNull = lc.locationId === null;
     return (
       <LocationCard
@@ -241,7 +217,6 @@ export default function PertencesTab() {
   }
 
   function renderDestinationCard({ item: dc }: { item: DestinationCount }) {
-    if (hideEmpty && dc.count === 0) return null;
     const isNull = dc.destination === null;
     const meta = isNull ? null : getDestinationMeta(dc.destination);
     const label = meta?.label ?? 'Indefinido';
@@ -319,7 +294,7 @@ export default function PertencesTab() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadCounts}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refreshCounts()}>
           <Text style={styles.retryButtonText}>Tentar novamente</Text>
         </TouchableOpacity>
       </View>
@@ -327,10 +302,6 @@ export default function PertencesTab() {
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
-
-  const listData = viewMode === 'location'
-    ? (locationCounts as Array<LocationCount | DestinationCount>)
-    : (destinationCounts as Array<LocationCount | DestinationCount>);
 
   return (
     <View style={styles.root}>
@@ -352,8 +323,8 @@ export default function PertencesTab() {
         <View style={styles.toolbarIcons}>
           <TouchableOpacity onPress={() => setHideEmpty((v) => !v)}>
             {hideEmpty
-              ? <Eye size={20} color={Colors.textSecondary} />
-              : <EyeOff size={20} color={Colors.textSecondary} />}
+              ? <EyeOff size={20} color={Colors.textSecondary} />
+              : <Eye size={20} color={Colors.textSecondary} />}
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setViewMode((v) => v === 'location' ? 'destination' : 'location')}>
             <ArrowLeftRight
@@ -470,7 +441,7 @@ export default function PertencesTab() {
         onClose={() => setShowItemForm(false)}
         onSaved={() => {
           setShowItemForm(false);
-          loadCounts();
+          refreshCounts();
         }}
         item={undefined}
         preselectedLocationId={undefined}

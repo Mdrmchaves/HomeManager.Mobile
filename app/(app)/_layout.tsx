@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Home, Package } from 'lucide-react-native';
+import { Home, Package, Wallet } from 'lucide-react-native';
 import {
   View,
   Text,
@@ -227,6 +227,15 @@ export default function AppLayout() {
               title: 'Inventário',
               tabBarIcon: ({ focused, color }) => (
                 <Package size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="finance"
+            options={{
+              title: 'Finanças',
+              tabBarIcon: ({ focused, color }) => (
+                <Wallet size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />

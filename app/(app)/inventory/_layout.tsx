@@ -1,5 +1,10 @@
 import { Stack } from 'expo-router';
+import { PertencesProvider } from '../../../contexts/PertencesContext';
 
 export default function InventoryLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <PertencesProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </PertencesProvider>
+  );
 }

@@ -30,7 +30,7 @@ export interface ItemFormProps {
   item?: InventoryItem;
   preselectedLocationId?: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: InventoryItem | null) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -194,10 +194,25 @@ export default function ItemForm({
 
       if (isEditing) {
         await InventoryService.updateItem(item.id, payload);
+        const updatedItem: InventoryItem = {
+          ...item,
+          name: name.trim(),
+          quantity: quantity ? parseInt(quantity, 10) : undefined,
+          locationId: locationId || undefined,
+          locationName: locations.find((l) => l.id === locationId)?.name,
+          value: value ? parseFloat(value.replace(',', '.')) : undefined,
+          description: description.trim() || undefined,
+          destination: destination || undefined,
+          ownerId: ownerId || undefined,
+          ownerName: members.find((m) => m.userId === ownerId)?.user.name,
+          photoUrl,
+          updatedAt: new Date().toISOString(),
+        };
+        onSaved(updatedItem);
       } else {
         await InventoryService.createItem({ householdId, ...payload });
+        onSaved(null);
       }
-      onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar item.');
     } finally {
@@ -213,7 +228,7 @@ export default function ItemForm({
     setShowResolvePicker(false);
     try {
       await InventoryService.resolveItem(item.id, destination);
-      onSaved();
+      onSaved(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao dar saída ao item.');
       setResolving(false);
@@ -227,7 +242,7 @@ export default function ItemForm({
     setDeleting(true);
     try {
       await InventoryService.deleteItem(item.id);
-      onSaved();
+      onSaved(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao apagar item.');
       setDeleting(false);

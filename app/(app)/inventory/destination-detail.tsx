@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
+import { usePertences } from '../../../contexts/PertencesContext';
 import { InventoryService } from '../../../services/inventory.service';
 import { LocationService } from '../../../services/location.service';
 import { StorageService } from '../../../services/storage.service';
@@ -28,6 +29,7 @@ export default function DestinationDetailScreen() {
   const router = useRouter();
   const { destination, label } = useLocalSearchParams<{ destination: string; label: string }>();
   const { selectedHousehold } = useHousehold();
+  const { detailCache, setDetailCache, refreshCounts } = usePertences();
 
   const isNullDestination = destination === 'null';
   const decodedLabel = decodeURIComponent(label ?? '');
@@ -46,12 +48,22 @@ export default function DestinationDetailScreen() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
 
+  // ── Refs ──
+  const fetchingRef = useRef(false);
+  // Segue o estado actual para evitar stale closure no cleanup do useFocusEffect
+  const currentStateRef = useRef({ items, photoUrls, page, hasMore });
+
   // ── Resolve / Delete ──
   const [resolveTargetItem, setResolveTargetItem] = useState<InventoryItem | null>(null);
   const [showItemResolvePicker, setShowItemResolvePicker] = useState(false);
   const [deleteTargetItem, setDeleteTargetItem] = useState<InventoryItem | null>(null);
   const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Manter currentStateRef sincronizado com o estado actual
+  useEffect(() => {
+    currentStateRef.current = { items, photoUrls, page, hasMore };
+  }, [items, photoUrls, page, hasMore]);
 
   // ── Carregamento ──────────────────────────────────────────────────────────
 
@@ -66,6 +78,8 @@ export default function DestinationDetailScreen() {
 
   async function loadPage(pageNum: number, reset = false) {
     if (!selectedHousehold) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (pageNum === 1) setLoading(true);
     else setLoadingMore(true);
     setError(null);
@@ -86,25 +100,42 @@ export default function DestinationDetailScreen() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar itens.');
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
   }
 
+  // Boot — dispara ao entrar na tela ou mudar de destino
   useEffect(() => {
+    const cacheKey = `dest:${destination}`;
+    if (detailCache?.key === cacheKey) {
+      setItems(detailCache.items);
+      setPhotoUrls(detailCache.photoUrls);
+      setPage(detailCache.page);
+      setHasMore(detailCache.hasMore);
+      setLoading(false);
+      return;
+    }
+
     LocationService.getLocations(selectedHousehold?.id ?? '').then(setLocations).catch(() => {});
     loadPage(1, true);
   }, [selectedHousehold?.id, destination]);
 
+  // Cleanup ao sair: guardar estado no cache e limpar memória local
   useFocusEffect(
     useCallback(() => {
       return () => {
+        setDetailCache({
+          key: `dest:${destination}`,
+          ...currentStateRef.current,
+        });
         setItems([]);
         setPhotoUrls({});
         setPage(1);
         setHasMore(true);
       };
-    }, [])
+    }, [destination])
   );
 
   // ── Agrupar itens por localização para divisores estáticos ────────────────
@@ -128,26 +159,28 @@ export default function DestinationDetailScreen() {
   async function handleResolveItem(dest: string) {
     if (!resolveTargetItem) return;
     setShowItemResolvePicker(false);
+    const targetId = resolveTargetItem.id;
+    setResolveTargetItem(null);
     try {
-      await InventoryService.resolveItem(resolveTargetItem.id, dest);
-      loadPage(1, true);
+      await InventoryService.resolveItem(targetId, dest);
+      setItems((prev) => prev.filter((i) => i.id !== targetId));
+      refreshCounts();
     } catch {
       setActionError('Erro ao dar saída ao item.');
-    } finally {
-      setResolveTargetItem(null);
     }
   }
 
   async function handleDeleteItem() {
     if (!deleteTargetItem) return;
     setShowItemDeleteConfirm(false);
+    const targetId = deleteTargetItem.id;
+    setDeleteTargetItem(null);
     try {
-      await InventoryService.deleteItem(deleteTargetItem.id);
-      loadPage(1, true);
+      await InventoryService.deleteItem(targetId);
+      setItems((prev) => prev.filter((i) => i.id !== targetId));
+      refreshCounts();
     } catch {
       setActionError('Erro ao apagar item.');
-    } finally {
-      setDeleteTargetItem(null);
     }
   }
 
@@ -191,8 +224,16 @@ export default function DestinationDetailScreen() {
         )}
 
         {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+          <View style={styles.skeletonContainer}>
+            {[...Array(8)].map((_, i) => (
+              <View key={i} style={styles.skeletonRow}>
+                <View style={styles.skeletonPhoto} />
+                <View style={styles.skeletonInfo}>
+                  <View style={styles.skeletonName} />
+                  <View style={styles.skeletonBadge} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : error ? (
           <View style={styles.centered}>
@@ -310,7 +351,17 @@ export default function DestinationDetailScreen() {
             item={editingItem}
             preselectedLocationId={undefined}
             onClose={() => setShowItemForm(false)}
-            onSaved={() => { setShowItemForm(false); loadPage(1, true); }}
+            onSaved={(saved) => {
+              setShowItemForm(false);
+              if (saved) {
+                // Edição — actualização optimista da linha
+                setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+              } else {
+                // Criação — reload (novo item vai para o topo)
+                loadPage(1, true);
+                refreshCounts();
+              }
+            }}
           />
         )}
       </View>
@@ -344,6 +395,21 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, letterSpacing: 0.5 },
   listContent: { paddingBottom: 100 },
+  skeletonContainer: { flex: 1, paddingTop: 8 },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    opacity: 0.6,
+  },
+  skeletonPhoto: { width: 60, height: 60, borderRadius: 8, backgroundColor: Colors.border, flexShrink: 0 },
+  skeletonInfo: { flex: 1, gap: 8 },
+  skeletonName: { height: 14, borderRadius: 6, backgroundColor: Colors.border },
+  skeletonBadge: { width: 60, height: 20, borderRadius: 10, backgroundColor: Colors.border },
   actionErrorBox: { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#fef2f2', borderRadius: 8, padding: 10 },
   actionErrorText: { color: Colors.error, fontSize: 13, textAlign: 'center' },
   errorText: { color: Colors.error, fontSize: 14, textAlign: 'center', marginBottom: 12 },

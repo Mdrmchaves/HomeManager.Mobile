@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
+import { usePertences } from '../../../contexts/PertencesContext';
 import { InventoryService } from '../../../services/inventory.service';
 import { LocationService } from '../../../services/location.service';
 import { StorageService } from '../../../services/storage.service';
@@ -40,6 +41,7 @@ export default function LocationDetailScreen() {
   const router = useRouter();
   const { locationId, locationName } = useLocalSearchParams<{ locationId: string; locationName: string }>();
   const { selectedHousehold } = useHousehold();
+  const { detailCache, setDetailCache, refreshCounts } = usePertences();
 
   const isNullLocation = locationId === 'null';
   const decodedName = decodeURIComponent(locationName ?? '');
@@ -61,7 +63,12 @@ export default function LocationDetailScreen() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
 
+  // ── Refs ──
   const fetchingRef = useRef(false);
+  // Previne double-fetch no mount: boot effect e chip effect disparam em simultâneo
+  const chipChangedRef = useRef(false);
+  // Segue o estado actual para evitar stale closure no cleanup do useFocusEffect
+  const currentStateRef = useRef({ items, photoUrls, page, hasMore });
 
   // ── Resolve / Delete ──
   const [resolveTargetItem, setResolveTargetItem] = useState<InventoryItem | null>(null);
@@ -69,6 +76,11 @@ export default function LocationDetailScreen() {
   const [deleteTargetItem, setDeleteTargetItem] = useState<InventoryItem | null>(null);
   const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Manter currentStateRef sincronizado com o estado actual
+  useEffect(() => {
+    currentStateRef.current = { items, photoUrls, page, hasMore };
+  }, [items, photoUrls, page, hasMore]);
 
   // ── Carregamento ──────────────────────────────────────────────────────────
 
@@ -113,27 +125,52 @@ export default function LocationDetailScreen() {
     }
   }
 
-  // Boot
+  // Boot — dispara ao entrar na tela ou mudar de localização
   useEffect(() => {
+    // Sinalizar ao chip effect para não disparar na montagem inicial
+    chipChangedRef.current = false;
+    // Resetar chip — se já era 'Todos', não gera re-render nem dispara chip effect
+    setSelectedChip('Todos');
+
+    // Verificar cache (sempre para chip 'Todos' pois é o estado inicial)
+    const cacheKey = `loc:${locationId}:Todos`;
+    if (detailCache?.key === cacheKey) {
+      setItems(detailCache.items);
+      setPhotoUrls(detailCache.photoUrls);
+      setPage(detailCache.page);
+      setHasMore(detailCache.hasMore);
+      setLoading(false);
+      return;
+    }
+
     LocationService.getLocations(selectedHousehold?.id ?? '').then(setLocations).catch(() => {});
     loadPage(1, true);
   }, [selectedHousehold?.id, locationId]);
 
-  // Reload ao mudar filtro de destino
+  // Chip — skip na montagem inicial (boot effect trata o fetch inicial)
   useEffect(() => {
+    if (!chipChangedRef.current) {
+      // Primeira execução após boot: marcar como pronto para reagir a mudanças futuras
+      chipChangedRef.current = true;
+      return;
+    }
     loadPage(1, true);
   }, [selectedChip]);
 
-  // Limpar memória ao sair da tela
+  // Cleanup ao sair: guardar estado no cache e limpar memória local
   useFocusEffect(
     useCallback(() => {
       return () => {
+        setDetailCache({
+          key: `loc:${locationId}:${selectedChip}`,
+          ...currentStateRef.current,
+        });
         setItems([]);
         setPhotoUrls({});
         setPage(1);
         setHasMore(true);
       };
-    }, [])
+    }, [locationId, selectedChip])
   );
 
   // ── Item actions ──────────────────────────────────────────────────────────
@@ -141,26 +178,28 @@ export default function LocationDetailScreen() {
   async function handleResolveItem(destination: string) {
     if (!resolveTargetItem) return;
     setShowItemResolvePicker(false);
+    const targetId = resolveTargetItem.id;
+    setResolveTargetItem(null);
     try {
-      await InventoryService.resolveItem(resolveTargetItem.id, destination);
-      loadPage(1, true);
+      await InventoryService.resolveItem(targetId, destination);
+      setItems((prev) => prev.filter((i) => i.id !== targetId));
+      refreshCounts();
     } catch {
       setActionError('Erro ao dar saída ao item.');
-    } finally {
-      setResolveTargetItem(null);
     }
   }
 
   async function handleDeleteItem() {
     if (!deleteTargetItem) return;
     setShowItemDeleteConfirm(false);
+    const targetId = deleteTargetItem.id;
+    setDeleteTargetItem(null);
     try {
-      await InventoryService.deleteItem(deleteTargetItem.id);
-      loadPage(1, true);
+      await InventoryService.deleteItem(targetId);
+      setItems((prev) => prev.filter((i) => i.id !== targetId));
+      refreshCounts();
     } catch {
       setActionError('Erro ao apagar item.');
-    } finally {
-      setDeleteTargetItem(null);
     }
   }
 
@@ -355,7 +394,17 @@ export default function LocationDetailScreen() {
             item={editingItem}
             preselectedLocationId={isNullLocation ? undefined : locationId}
             onClose={() => setShowItemForm(false)}
-            onSaved={() => { setShowItemForm(false); loadPage(1, true); }}
+            onSaved={(saved) => {
+              setShowItemForm(false);
+              if (saved) {
+                // Edição — actualização optimista da linha
+                setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+              } else {
+                // Criação — reload (novo item vai para o topo)
+                loadPage(1, true);
+                refreshCounts();
+              }
+            }}
           />
         )}
       </View>
@@ -379,9 +428,9 @@ const styles = StyleSheet.create({
   backText: { fontSize: 28, color: Colors.primary, lineHeight: 32 },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: Colors.textPrimary },
   chipsRow: { flexGrow: 0 },
-  chipsContainer: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 10, 
+  chipsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     alignContent: 'flex-start',
  },
   chip: {
