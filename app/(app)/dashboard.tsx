@@ -1,42 +1,67 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '../../constants/colors';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useHousehold } from '../../contexts/HouseholdContext';
+import { UserService } from '../../services/user.service';
+import { FinanceSummaryCard } from '../../components/dashboard/FinanceSummaryCard';
+import { InventorySummaryCard } from '../../components/dashboard/InventorySummaryCard';
+import { Colors } from '../../constants/colors';
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
 
 export default function DashboardScreen() {
   const { selectedHousehold } = useHousehold();
+  const [firstName, setFirstName] = useState('');
+
+  useEffect(() => {
+    UserService.getMe()
+      .then((u) => setFirstName(u?.name?.split(' ')[0] ?? ''))
+      .catch(() => {});
+  }, []);
+
+  if (!selectedHousehold) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Início</Text>
-      {selectedHousehold && (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.greetingSection}>
+        <Text style={styles.greeting}>
+          {greeting()}{firstName ? `, ${firstName}` : ''}!
+        </Text>
         <Text style={styles.householdName}>{selectedHousehold.name}</Text>
-      )}
-      <Text style={styles.subtitle}>Dashboard — em breve</Text>
-    </View>
+      </View>
+
+      <FinanceSummaryCard householdId={selectedHousehold.id} />
+      <InventorySummaryCard householdId={selectedHousehold.id} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: Colors.background,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  content: {
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  greetingSection: {
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: 4,
   },
   householdName: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.primary,
     fontWeight: '600',
-    marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });
