@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Home, Package, Wallet } from 'lucide-react-native';
+import { Home, Package, Wallet, Settings } from 'lucide-react-native';
 import {
   View,
   Text,
@@ -107,20 +107,6 @@ function AppHeader({ userEmail }: { userEmail: string }) {
                   </Text>
                 </TouchableOpacity>
               ))}
-
-              <View style={modalStyles.divider} />
-
-              {selectedHousehold && (
-                <TouchableOpacity
-                  style={modalStyles.addButton}
-                  onPress={() => {
-                    setShowHouseholdModal(false);
-                    router.push('/(app)/household-settings');
-                  }}
-                >
-                  <Text style={modalStyles.settingsButtonText}>⚙ Configurações da casa</Text>
-                </TouchableOpacity>
-              )}
 
               <View style={modalStyles.divider} />
 
@@ -250,6 +236,15 @@ export default function AppLayout() {
               title: 'Finanças',
               tabBarIcon: ({ focused, color }) => (
                 <Wallet size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="settings"
+            options={{
+              title: 'Casa',
+              tabBarIcon: ({ focused, color }) => (
+                <Settings size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />
