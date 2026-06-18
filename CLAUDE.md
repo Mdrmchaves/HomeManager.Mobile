@@ -22,6 +22,7 @@ Consome a API .NET 10 em `D:/Repos/HomeManager`. Autenticação via Supabase (JW
 - Histórico (`history.tsx`) — lista de itens resolvidos, scroll infinito, restaurar; funcional.
 - `item-form.tsx` — criar/editar item (câmara, localização, destino, dono, dar saída, apagar).
 - Dashboard e Despensa — placeholders ("em breve").
+- **Tarefas** — módulo completo: DateCarousel, TaskCard com accordion, skeleton loading, optimistic updates, TaskForm modal com recorrência (diária/semanal/mensal).
 - **⚠️ BUG**: `household-setup.tsx` usa `useAuth().refreshHouseholds` em vez de `useHousehold().refreshHouseholds` — o `HouseholdContext` foi criado recentemente e este componente não foi actualizado.
 - **Código morto**: `DestinationFilter.tsx`, `SearchBar.tsx`, `LocationGroupCard.tsx` — resquícios de uma refactoring anterior; nenhuma tela os importa actualmente.
 
@@ -106,10 +107,12 @@ HomeManager.Mobile/
 │   │   └── login.tsx            ← Login / Registo / confirmação email; Logo SVG inline
 │   └── (app)/
 │       ├── _layout.tsx          ← Exporta STATUS_BAR_HEIGHT; AppHeader com dropdown de household
-│       │                           e avatar; tabs (Dashboard, Inventory); isMounted ref
+│       │                           e avatar; tabs (Dashboard, Inventory, Finance, Tasks, Settings); isMounted ref
 │       ├── dashboard.tsx        ← Placeholder "Dashboard — em breve"
 │       ├── household-setup.tsx  ← Criar / entrar em household; ⚠️ usa useAuth() (bug — ver §11)
 │       ├── profile.tsx          ← Nome editável, email read-only; isDirty guard
+│       ├── tasks.tsx            ← Módulo Tarefas: DateCarousel + TaskCard accordion + FAB + TaskForm modal
+│       ├── task-form.tsx        ← Modal criar/editar tarefa; recurrence picker (nunca/diária/semanal/mensal)
 │       └── inventory/
 │           ├── _layout.tsx      ← Stack envolto em PertencesProvider
 │           ├── index.tsx        ← Container com pill tabs Pertences / Despensa
@@ -123,6 +126,10 @@ HomeManager.Mobile/
 ├── components/
 │   ├── AuthGuard.tsx            ← Routing via useEffect + router.replace; esconde splash screen
 │   ├── ItemMenuProvider.tsx     ← Modal de menu contextual; posicionamento dinâmico acima/abaixo
+│   ├── tasks/
+│   │   ├── DateCarousel.tsx     ← FlatList horizontal de 121 dias (-60..+60); getItemLayout; scrollToIndex
+│   │   ├── TaskCard.tsx         ← Card com accordion (long-press); concluir/reabrir/editar/apagar
+│   │   └── TasksSkeleton.tsx    ← 6 skeleton cards para loading state
 │   └── inventory/
 │       ├── InventoryItemRow.tsx ← Row com long-press (openMenu), color bar, foto, badge destino
 │       ├── SearchBar.tsx        ← ⚠️ CÓDIGO MORTO — não importado por nenhuma tela
@@ -159,6 +166,8 @@ HomeManager.Mobile/
 │   ├── inventory.service.ts    ← getItems, searchItems, getCountsByLocation,
 │   │                              getCountsByDestination, getResolvedItems, CRUD, resolve, restore
 │   ├── location.service.ts     ← getLocations, createLocation, updateLocation, deleteLocation
+│   ├── task.service.ts         ← getTasksByDate, createTask, updateTask, completeTask,
+│   │                              reopenTask, deleteTask, deleteRecurrence
 │   └── user.service.ts         ← getMe, updateMe
 └── types/
     ├── api-response.ts         ← ApiResponse<T> { success, message, data, timestamp }
@@ -167,6 +176,7 @@ HomeManager.Mobile/
     ├── household.ts            ← Household + HouseholdUser { userId, role, user{id,name,email} }
     ├── inventory-item.ts       ← InventoryItem; ownerName?: string marcado "não vem da API"
     ├── location.ts             ← Location { id, householdId, name, icon?, createdAt }
+    ├── task.ts                 ← Task, CreateTaskRequest, UpdateTaskRequest, RecurrencePattern
     └── user.ts                 ← UserProfile { id, email, name, createdAt, updatedAt }
 ```
 
@@ -435,6 +445,14 @@ Todos os endpoints requerem `Authorization: Bearer {supabase_jwt}`.
 | `GET /api/household/{id}` | Household único (inclui `householdUsers[]`) |
 | `POST /api/household` | Criar household |
 | `POST /api/household/join/{inviteCode}` | Aderir a household |
+| `GET /api/tasks?householdId=&date=YYYY-MM-DD` | Tarefas para um dia; gera recorrências lazy |
+| `POST /api/tasks` | Criar tarefa; `recurrencePattern` opcional (`daily`/`weekly`/`monthly`) |
+| `PUT /api/tasks/{id}` | Actualizar tarefa (title, description, assigneeId, dueDate) |
+| `POST /api/tasks/{id}/complete` | Marcar concluída |
+| `POST /api/tasks/{id}/reopen` | Reabrir tarefa |
+| `DELETE /api/tasks/{id}` | Apagar tarefa |
+| `PUT /api/task-recurrences/{id}` | Actualizar recorrência (assigneeId, isActive) |
+| `DELETE /api/task-recurrences/{id}` | Apagar recorrência (soft-delete) |
 
 `PagedResponse<T>`: `{ items[], total, page, pageSize, hasMore }`
 
@@ -508,6 +526,9 @@ eas build --platform android --profile development     # Build de desenvolviment
 | Chips de filtro quebram horizontalmente | `gap` comprime chips em FlatList | `flexShrink: 0` no chip + `marginRight` em vez de `gap`; sem `alignItems` no `contentContainerStyle` |
 | Emojis múltiplos quebram cards | Text wraps para segunda linha | `numberOfLines={1}` no Text do ícone |
 | Splash screen aparece antes do redirect | `hideAsync()` disparava cedo | Movido para AuthGuard com `splashHidden useRef` |
+| `toISOString()` envia dia errado à noite | Converte para UTC — no Brasil (UTC-3) meia-noite local = dia anterior UTC | Usar `formatDateParam()` em `utils/taskDates.ts` (componentes locais da data) |
+| `gap` em FlatList horizontal do DateCarousel | Comprime itens em RN | `marginRight: 4` + `flexShrink: 0` no chip; nunca `gap` |
+| `DateCarousel` constrói janela no module-level | `DATE_WINDOW` é fixo no momento do import | Se a app ficar em background dias, o carrossel fica desfasado — reiniciar a app |
 | `CropImageActivity` não registada | `expo-image-picker` ausente dos plugins | Adicionado ao array `plugins` do `app.json` — requer rebuild EAS |
 | `household-setup.tsx` usa `useAuth()` | `HouseholdContext` criado depois | ⚠️ Bug por corrigir — deve usar `useHousehold()` |
 

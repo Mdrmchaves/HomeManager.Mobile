@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Home, Package, Wallet, Settings } from 'lucide-react-native';
+import { CheckSquare, Home, Package, Settings, Wallet } from 'lucide-react-native';
 import {
   View,
   Text,
@@ -240,6 +240,15 @@ export default function AppLayout() {
             }}
           />
           <Tabs.Screen
+            name="tasks"
+            options={{
+              title: 'Tarefas',
+              tabBarIcon: ({ focused, color }) => (
+                <CheckSquare size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="settings"
             options={{
               title: 'Casa',
@@ -248,6 +257,7 @@ export default function AppLayout() {
               ),
             }}
           />
+          <Tabs.Screen name="task-form" options={{ href: null }} />
           <Tabs.Screen name="household-setup" options={{ href: null }} />
           <Tabs.Screen name="household-settings" options={{ href: null }} />
           <Tabs.Screen name="profile" options={{ href: null }} />
