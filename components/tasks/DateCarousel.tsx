@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
@@ -56,11 +56,6 @@ export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) 
     currentIndexRef.current = clamped;
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(() => scrollTo(TODAY_INDEX, false), 60);
-    return () => clearTimeout(t);
-  }, [scrollTo]);
-
   function handleScrollEnd(event: { nativeEvent: { contentOffset: { x: number } } }) {
     const index = Math.max(
       0,
@@ -107,6 +102,7 @@ export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) 
           snapToInterval={ITEM_WIDTH}
           decelerationRate="fast"
           contentContainerStyle={{ paddingHorizontal: SIDE_PADDING }}
+          contentOffset={{ x: TODAY_INDEX * ITEM_WIDTH, y: 0 }}
           onMomentumScrollEnd={handleScrollEnd}
           onScrollEndDrag={handleScrollEnd}
           renderItem={({ item: date }) => {
