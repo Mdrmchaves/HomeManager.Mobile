@@ -101,6 +101,9 @@ export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) 
           showsHorizontalScrollIndicator={false}
           snapToInterval={ITEM_WIDTH}
           decelerationRate="fast"
+          initialNumToRender={TOTAL}
+          maxToRenderPerBatch={TOTAL}
+          windowSize={TOTAL}
           contentContainerStyle={{ paddingHorizontal: SIDE_PADDING }}
           contentOffset={{ x: TODAY_INDEX * ITEM_WIDTH, y: 0 }}
           onMomentumScrollEnd={handleScrollEnd}
