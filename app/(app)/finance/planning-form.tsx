@@ -30,6 +30,25 @@ import type {
 } from '../../../types/finance';
 import type { SupportedCurrency } from '../../../constants/finance-constants';
 
+// ── Máscara de moeda ──────────────────────────────────────────────────────────
+function toRawDigits(value: number): string {
+  return Math.round(value * 100).toString();
+}
+function rawToNumber(raw: string): number {
+  if (!raw) return 0;
+  return parseInt(raw, 10) / 100;
+}
+function formatCurrencyInput(raw: string): string {
+  if (!raw) return '';
+  return (parseInt(raw, 10) / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+function onlyDigits(text: string): string {
+  return text.replace(/\D/g, '').replace(/^0+/, '');
+}
+
 interface Props {
   visible: boolean;
   item?: FinancePlanningItem;
@@ -49,7 +68,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
   const isEditing = !!item;
 
   const [description, setDescription] = useState(item?.description ?? '');
-  const [amount, setAmount] = useState(item?.amount?.toString() ?? '');
+  const [amount, setAmount] = useState(item?.amount != null ? toRawDigits(item.amount) : '');
   const [currency, setCurrency] = useState<SupportedCurrency>(
     (item?.currency as SupportedCurrency) ?? 'BRL'
   );
@@ -70,7 +89,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
   useEffect(() => {
     if (visible) {
       setDescription(item?.description ?? '');
-      setAmount(item?.amount?.toString() ?? '');
+      setAmount(item?.amount != null ? toRawDigits(item.amount) : '');
       setCurrency((item?.currency as SupportedCurrency) ?? 'BRL');
       setCategory(item?.category);
       setType(item?.type ?? 'fixed');
@@ -84,7 +103,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
 
   async function handleSave() {
     if (!description.trim()) { setError('A descrição é obrigatória.'); return; }
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || rawToNumber(amount) <= 0) {
       setError('Valor inválido.');
       return;
     }
@@ -101,7 +120,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
       if (isEditing) {
         saved = await PlanningService.updateItem(item.id, {
           description: description.trim(),
-          amount: Number(amount),
+          amount: rawToNumber(amount),
           currency,
           category: category ?? undefined,
           type,
@@ -114,7 +133,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
         saved = await PlanningService.createItem({
           householdId: selectedHousehold.id,
           description: description.trim(),
-          amount: Number(amount),
+          amount: rawToNumber(amount),
           currency,
           category: category ?? undefined,
           type,
@@ -183,11 +202,11 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
             <Text style={styles.label}>Valor</Text>
             <TextInput
               style={styles.input}
-              value={amount}
-              onChangeText={setAmount}
+              value={formatCurrencyInput(amount)}
+              onChangeText={(t) => setAmount(onlyDigits(t))}
               placeholder="0,00"
               placeholderTextColor={Colors.textSecondary}
-              keyboardType="numeric"
+              keyboardType="number-pad"
             />
             <View style={[styles.row, { marginTop: 6 }]}>
               {SUPPORTED_CURRENCIES.map((c) => (
