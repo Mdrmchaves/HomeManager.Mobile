@@ -9,9 +9,11 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { X } from 'lucide-react-native';
 import { StorageService } from '../../../services/storage.service';
 import { InventoryService } from '../../../services/inventory.service';
 import { HouseholdService } from '../../../services/household.service';
@@ -20,6 +22,25 @@ import { DESTINATION_ALL_OPTIONS, DESTINATION_RESOLVE_OPTIONS } from '../../../c
 import type { InventoryItem } from '../../../types/inventory-item';
 import type { Location } from '../../../types/location';
 import type { HouseholdUser } from '../../../types/household';
+
+// ── Máscara de moeda ──────────────────────────────────────────────────────────
+function toRawDigits(value: number): string {
+  return Math.round(value * 100).toString();
+}
+function rawToNumber(raw: string): number {
+  if (!raw) return 0;
+  return parseInt(raw, 10) / 100;
+}
+function formatCurrencyInput(raw: string): string {
+  if (!raw) return '';
+  return (parseInt(raw, 10) / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+function onlyDigits(text: string): string {
+  return text.replace(/\D/g, '').replace(/^0+/, '');
+}
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 
@@ -95,7 +116,7 @@ export default function ItemForm({
       setName(item.name);
       setQuantity(item.quantity != null ? String(item.quantity) : '');
       setLocationId(item.locationId ?? '');
-      setValue(item.value != null ? String(item.value) : '');
+      setValue(item.value != null ? toRawDigits(item.value) : '');
       setDescription(item.description ?? '');
       setDestination(item.destination ?? '');
       setOwnerId(item.ownerId ?? '');
@@ -185,7 +206,7 @@ export default function ItemForm({
         name: name.trim(),
         quantity: quantity ? parseInt(quantity, 10) : undefined,
         locationId: locationId || undefined,
-        value: value ? parseFloat(value.replace(',', '.')) : undefined,
+        value: value ? rawToNumber(value) : undefined,
         description: description.trim() || undefined,
         destination: destination || undefined,
         ownerId: ownerId || undefined,
@@ -200,7 +221,7 @@ export default function ItemForm({
           quantity: quantity ? parseInt(quantity, 10) : undefined,
           locationId: locationId || undefined,
           locationName: locations.find((l) => l.id === locationId)?.name,
-          value: value ? parseFloat(value.replace(',', '.')) : undefined,
+          value: value ? rawToNumber(value) : undefined,
           description: description.trim() || undefined,
           destination: destination || undefined,
           ownerId: ownerId || undefined,
@@ -264,39 +285,25 @@ export default function ItemForm({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.headerSide}>
-            <Text style={styles.cancelBtn}>Cancelar</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isEditing ? 'Editar item' : 'Novo item'}</Text>
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={saving}
-            style={styles.headerSide}
-          >
-            <Text style={[styles.saveBtn, saving && styles.saveBtnDisabled]}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
+      >
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
 
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{isEditing ? 'Editar item' : 'Novo item'}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Error */}
             {!!error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -376,9 +383,9 @@ export default function ItemForm({
                 style={styles.input}
                 placeholder="0,00"
                 placeholderTextColor={Colors.textSecondary}
-                value={value}
-                onChangeText={setValue}
-                keyboardType="decimal-pad"
+                value={formatCurrencyInput(value)}
+                onChangeText={(t) => setValue(onlyDigits(t))}
+                keyboardType="number-pad"
               />
             </View>
 
@@ -408,7 +415,7 @@ export default function ItemForm({
               </TouchableOpacity>
             </View>
 
-            {/* Owner (só visível com mais de 1 membro) */}
+            {/* Owner */}
             {members.length > 1 && (
               <View style={styles.field}>
                 <Text style={styles.label}>Dono</Text>
@@ -422,7 +429,7 @@ export default function ItemForm({
               </View>
             )}
 
-            {/* Dar saída (edit mode only) */}
+            {/* Dar saída */}
             {isEditing && (
               <TouchableOpacity
                 style={styles.resolveButton}
@@ -435,7 +442,7 @@ export default function ItemForm({
               </TouchableOpacity>
             )}
 
-            {/* Delete (edit mode only) */}
+            {/* Delete */}
             {isEditing && (
               <TouchableOpacity
                 style={styles.deleteButton}
@@ -448,242 +455,189 @@ export default function ItemForm({
               </TouchableOpacity>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={saving}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.saveText}>Salvar</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* ── Photo ActionSheet ── */}
-      <Modal visible={showPhotoActionSheet} transparent animationType="slide">
-        <TouchableOpacity
-          style={styles.asBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowPhotoActionSheet(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.asCard}>
-              <TouchableOpacity style={styles.asOption} onPress={handleCamera}>
-                <Text style={styles.asOptionText}>Tirar foto</Text>
-              </TouchableOpacity>
-              <View style={styles.asDivider} />
-              <TouchableOpacity style={styles.asOption} onPress={handleGallery}>
-                <Text style={styles.asOptionText}>Escolher da galeria</Text>
-              </TouchableOpacity>
-              {previewUri && (
-                <>
-                  <View style={styles.asDivider} />
-                  <TouchableOpacity style={styles.asOption} onPress={handleRemovePhoto}>
-                    <Text style={[styles.asOptionText, { color: Colors.error }]}>
-                      Remover foto
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              <View style={styles.asSeparator} />
-              <TouchableOpacity
-                style={styles.asOption}
-                onPress={() => setShowPhotoActionSheet(false)}
-              >
-                <Text style={[styles.asOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+      <Modal visible={showPhotoActionSheet} transparent animationType="slide" onRequestClose={() => setShowPhotoActionSheet(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.actionSheet}>
+            <View style={styles.handle} />
+            <TouchableOpacity style={styles.asOption} onPress={handleCamera}>
+              <Text style={styles.asOptionText}>Tirar foto</Text>
+            </TouchableOpacity>
+            <View style={styles.asDivider} />
+            <TouchableOpacity style={styles.asOption} onPress={handleGallery}>
+              <Text style={styles.asOptionText}>Escolher da galeria</Text>
+            </TouchableOpacity>
+            {previewUri && (
+              <>
+                <View style={styles.asDivider} />
+                <TouchableOpacity style={styles.asOption} onPress={handleRemovePhoto}>
+                  <Text style={[styles.asOptionText, { color: Colors.error }]}>Remover foto</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <View style={styles.asSeparator} />
+            <TouchableOpacity style={styles.asOption} onPress={() => setShowPhotoActionSheet(false)}>
+              <Text style={[styles.asOptionText, { color: Colors.textSecondary }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Location Picker ── */}
-      <Modal visible={showLocationPicker} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowLocationPicker(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.pickerCard}>
+      <Modal visible={showLocationPicker} transparent animationType="slide" onRequestClose={() => setShowLocationPicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.handle} />
+            <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Local</Text>
-              {[{ id: '', name: 'Sem local' }, ...locations].map((loc, idx, arr) => (
+              <TouchableOpacity onPress={() => setShowLocationPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[{ id: '', name: 'Sem local' }, ...locations].map((loc) => (
                 <TouchableOpacity
                   key={loc.id || '__none__'}
-                  style={[
-                    styles.pickerOption,
-                    idx < arr.length - 1 && styles.pickerOptionBorder,
-                  ]}
+                  style={[styles.pickerOption, locationId === loc.id && styles.pickerOptionActive]}
                   onPress={() => { setLocationId(loc.id); setShowLocationPicker(false); }}
                 >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      locationId === loc.id && styles.pickerOptionActive,
-                    ]}
-                  >
+                  <Text style={[styles.pickerOptionText, locationId === loc.id && styles.pickerOptionTextActive]}>
                     {loc.name}
                   </Text>
                 </TouchableOpacity>
               ))}
-              <View style={styles.pickerDivider} />
-              <TouchableOpacity
-                style={styles.pickerOption}
-                onPress={() => setShowLocationPicker(false)}
-              >
-                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Destination Picker ── */}
-      <Modal visible={showDestinationPicker} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowDestinationPicker(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.pickerCard}>
+      <Modal visible={showDestinationPicker} transparent animationType="slide" onRequestClose={() => setShowDestinationPicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.handle} />
+            <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Destino</Text>
-              {DESTINATION_ALL_OPTIONS.map((opt, idx, arr) => (
+              <TouchableOpacity onPress={() => setShowDestinationPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {DESTINATION_ALL_OPTIONS.map((opt) => (
                 <TouchableOpacity
                   key={opt.value || '__none__'}
-                  style={[
-                    styles.pickerOption,
-                    idx < arr.length - 1 && styles.pickerOptionBorder,
-                  ]}
+                  style={[styles.pickerOption, destination === opt.value && styles.pickerOptionActive]}
                   onPress={() => { setDestination(opt.value); setShowDestinationPicker(false); }}
                 >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      destination === opt.value && styles.pickerOptionActive,
-                    ]}
-                  >
+                  <Text style={[styles.pickerOptionText, destination === opt.value && styles.pickerOptionTextActive]}>
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
-              <View style={styles.pickerDivider} />
-              <TouchableOpacity
-                style={styles.pickerOption}
-                onPress={() => setShowDestinationPicker(false)}
-              >
-                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Owner Picker ── */}
-      <Modal visible={showOwnerPicker} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowOwnerPicker(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.pickerCard}>
+      <Modal visible={showOwnerPicker} transparent animationType="slide" onRequestClose={() => setShowOwnerPicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.handle} />
+            <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Dono</Text>
-              {[{ userId: '', user: { id: '', name: 'Sem dono', email: '' }, role: '' }, ...members].map((m, idx, arr) => (
+              <TouchableOpacity onPress={() => setShowOwnerPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[{ userId: '', user: { id: '', name: 'Sem dono', email: '' }, role: '' }, ...members].map((m) => (
                 <TouchableOpacity
                   key={m.userId || '__none__'}
-                  style={[
-                    styles.pickerOption,
-                    idx < arr.length - 1 && styles.pickerOptionBorder,
-                  ]}
+                  style={[styles.pickerOption, ownerId === m.userId && styles.pickerOptionActive]}
                   onPress={() => { setOwnerId(m.userId); setShowOwnerPicker(false); }}
                 >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      ownerId === m.userId && styles.pickerOptionActive,
-                    ]}
-                  >
+                  <Text style={[styles.pickerOptionText, ownerId === m.userId && styles.pickerOptionTextActive]}>
                     {m.user.name}
                   </Text>
                 </TouchableOpacity>
               ))}
-              <View style={styles.pickerDivider} />
-              <TouchableOpacity
-                style={styles.pickerOption}
-                onPress={() => setShowOwnerPicker(false)}
-              >
-                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Resolve Picker ── */}
-      <Modal visible={showResolvePicker} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowResolvePicker(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.pickerCard}>
-              <Text style={styles.pickerTitle}>Dar saída — escolher destino</Text>
-              {DESTINATION_RESOLVE_OPTIONS.map((opt, idx, arr) => {
-                const isPreselected = destination === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.pickerOption,
-                      idx < arr.length - 1 && styles.pickerOptionBorder,
-                      ]}
-                    onPress={() => handleResolve(opt.value)}
-                  >
-                    <View style={styles.resolveOptionRow}>
-                      <Text style={styles.pickerOptionText}>{opt.label}</Text>
-                      {isPreselected && <Text style={{ color: opt.badge.text, fontSize: 16, marginRight: 8 }}>✓</Text>}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-              <View style={styles.pickerDivider} />
-              <TouchableOpacity
-                style={styles.pickerOption}
-                onPress={() => setShowResolvePicker(false)}
-              >
-                <Text style={[styles.pickerOptionText, { color: Colors.textSecondary }]}>
-                  Cancelar
-                </Text>
+      <Modal visible={showResolvePicker} transparent animationType="slide" onRequestClose={() => setShowResolvePicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.handle} />
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Dar saída — destino</Text>
+              <TouchableOpacity onPress={() => setShowResolvePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            <ScrollView>
+              {DESTINATION_RESOLVE_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.pickerOption, destination === opt.value && styles.pickerOptionActive]}
+                  onPress={() => handleResolve(opt.value)}
+                >
+                  <Text style={[styles.pickerOptionText, destination === opt.value && styles.pickerOptionTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Delete confirm ── */}
-      <Modal visible={showDeleteConfirm} transparent animationType="fade">
-        <View style={styles.confirmBackdrop}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Apagar item?</Text>
-            <Text style={styles.confirmBody}>Esta ação não pode ser desfeita.</Text>
-            <View style={styles.confirmButtons}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, styles.confirmBtnCancel]}
-                onPress={() => setShowDeleteConfirm(false)}
-                disabled={deleting}
-              >
-                <Text style={styles.confirmBtnCancelText}>Cancelar</Text>
+      <Modal visible={showDeleteConfirm} transparent animationType="slide" onRequestClose={() => setShowDeleteConfirm(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.handle} />
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Apagar item</Text>
+              <TouchableOpacity onPress={() => setShowDeleteConfirm(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.confirmBody}>
+              <Text style={styles.confirmText}>Esta ação não pode ser desfeita.</Text>
+            </View>
+            <View style={styles.footer}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteConfirm(false)} disabled={deleting}>
+                <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmBtn, styles.confirmBtnDelete]}
+                style={[styles.deleteConfirmBtn, deleting && styles.saveBtnDisabled]}
                 onPress={handleDelete}
                 disabled={deleting}
               >
-                <Text style={styles.confirmBtnDeleteText}>
-                  {deleting ? 'A apagar...' : 'Apagar'}
-                </Text>
+                <Text style={styles.deleteConfirmText}>{deleting ? 'A apagar...' : 'Apagar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -696,49 +650,81 @@ export default function ItemForm({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
+  // Main sheet
+  overlay: {
     flex: 1,
-    backgroundColor: Colors.background,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-
-  // Header
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerSide: {
-    minWidth: 80,
-  },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 8,
+    gap: 16,
+  },
+  footer: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
   cancelBtn: {
-    fontSize: 16,
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   saveBtn: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
-    textAlign: 'right',
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   saveBtnDisabled: {
     opacity: 0.5,
   },
-
-  // Scroll
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 16,
+  saveText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 
   // Error
@@ -759,7 +745,7 @@ const styles = StyleSheet.create({
   },
   photoPreview: {
     width: '100%',
-    height: 200,
+    height: 180,
     borderRadius: 12,
   },
   photoOverlay: {
@@ -777,7 +763,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   photoPlaceholder: {
-    height: 120,
+    height: 100,
     borderWidth: 1.5,
     borderColor: Colors.border,
     borderStyle: 'dashed',
@@ -785,10 +771,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
   },
   photoPlaceholderIcon: {
-    fontSize: 32,
+    fontSize: 28,
   },
   photoPlaceholderText: {
     fontSize: 14,
@@ -801,37 +787,39 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   input: {
-    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 14,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     color: Colors.textPrimary,
+    backgroundColor: Colors.background,
   },
   inputError: {
     borderColor: Colors.error,
   },
   inputMultiline: {
-    height: 88,
+    height: 80,
     textAlignVertical: 'top',
   },
   pickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.background,
   },
   pickerButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.textPrimary,
   },
   pickerChevron: {
@@ -839,32 +827,25 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Resolve picker row
-  resolveOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
   // Resolve button
   resolveButton: {
     alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 8,
+    paddingVertical: 13,
+    marginTop: 4,
     backgroundColor: '#fef3c7',
-    borderRadius: 12,
+    borderRadius: 10,
   },
   resolveButtonText: {
     fontSize: 15,
     color: '#92400e',
-    fontWeight: '500',
+    fontWeight: '600',
   },
 
-  // Delete button
+  // Delete button (inline in form)
   deleteButton: {
     alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 8,
+    paddingVertical: 13,
+    marginTop: 4,
   },
   deleteButtonText: {
     fontSize: 15,
@@ -873,15 +854,10 @@ const styles = StyleSheet.create({
   },
 
   // Photo ActionSheet
-  asBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  asCard: {
+  actionSheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     paddingHorizontal: 16,
   },
@@ -904,92 +880,69 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
 
-  // Pickers
-  pickerBackdrop: {
+  // Shared picker / confirm overlay
+  pickerOverlay: {
     flex: 1,
+    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 24,
   },
-  pickerCard: {
+  pickerSheet: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
   },
-  pickerTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
-  pickerOption: {
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
     paddingVertical: 14,
-  },
-  pickerOptionBorder: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  pickerOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  pickerOptionActive: {
+    backgroundColor: '#f0faf5',
   },
   pickerOptionText: {
     fontSize: 15,
     color: Colors.textPrimary,
   },
-  pickerOptionActive: {
+  pickerOptionTextActive: {
     color: Colors.primary,
     fontWeight: '600',
   },
-  pickerDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 4,
-  },
 
-  // Delete confirm
-  confirmBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  confirmCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
-  },
-  confirmTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
+  // Delete confirm sheet
   confirmBody: {
+    padding: 20,
+  },
+  confirmText: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginBottom: 24,
+    lineHeight: 20,
   },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmBtn: {
+  deleteConfirmBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 10,
+    backgroundColor: Colors.error,
     alignItems: 'center',
   },
-  confirmBtnCancel: {
-    backgroundColor: Colors.border,
-  },
-  confirmBtnCancelText: {
+  deleteConfirmText: {
     fontSize: 15,
-    color: Colors.textPrimary,
-    fontWeight: '500',
-  },
-  confirmBtnDelete: {
-    backgroundColor: Colors.error,
-  },
-  confirmBtnDeleteText: {
-    fontSize: 15,
+    fontWeight: '700',
     color: '#ffffff',
-    fontWeight: '600',
   },
 });
