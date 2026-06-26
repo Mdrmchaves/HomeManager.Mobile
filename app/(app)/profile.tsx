@@ -10,15 +10,19 @@ import {
   KeyboardAvoidingView,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { UserService } from '@/services/user.service';
 import { Colors } from '@/constants/colors';
 import type { UserProfile } from '@/types/user';
 
 // ─── Profile Screen ───────────────────────────────────────────────────────────
 
+const VALID_TABS = ['dashboard', 'tasks', 'finance', 'inventory', 'settings'];
+
 export default function ProfileScreen() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const backTab = VALID_TABS.includes(from ?? '') ? from! : 'dashboard';
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -65,7 +69,7 @@ export default function ProfileScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.navigate(`/(app)/${backTab}`)} style={styles.backBtn}>
           <Text style={styles.backText}>{'‹'} Voltar</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Perfil</Text>

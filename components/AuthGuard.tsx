@@ -23,8 +23,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace('/(app)/dashboard');
     } else if (session && hasHousehold === false && householdLoading === false && !inHouseholdSetup) {
       router.replace('/(app)/household-setup');
-    } else if (session && hasHousehold === true && inHouseholdSetup) {
-      router.replace('/(app)/dashboard');
     }
 
     if (!splashHidden.current) {

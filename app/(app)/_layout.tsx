@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { Tabs, useFocusEffect, useRouter } from 'expo-router';
+import { Tabs, useFocusEffect, useRouter, useSegments } from 'expo-router';
 import { HouseholdService } from '../../services/household.service';
 import { AuthService, supabase } from '../../services/auth.service';
 import { Colors } from '../../constants/colors';
@@ -39,6 +39,7 @@ export const STATUS_BAR_HEIGHT =
 
 function AppHeader({ userEmail }: { userEmail: string }) {
   const router = useRouter();
+  const segments = useSegments();
   const { households, selectedHousehold, setSelectedHousehold, refreshHouseholds } = useHousehold();
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -144,7 +145,7 @@ function AppHeader({ userEmail }: { userEmail: string }) {
             <TouchableOpacity
               onPress={() => {
                 setShowAvatarModal(false);
-                router.push('/(app)/profile');
+                router.push({ pathname: '/(app)/profile', params: { from: segments[1] ?? 'dashboard' } });
               }}
             >
               <Text style={modalStyles.profileText}>Perfil</Text>
@@ -205,6 +206,7 @@ export default function AppLayout() {
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <AppHeader userEmail={userEmail} />
         <Tabs
+          initialRouteName="dashboard"
           screenOptions={{
             tabBarActiveTintColor: Colors.primary,
             tabBarInactiveTintColor: Colors.textSecondary,
@@ -213,20 +215,11 @@ export default function AppLayout() {
           }}
         >
           <Tabs.Screen
-            name="dashboard"
-            options={{
-              title: 'Início',
-              tabBarIcon: ({ focused, color }) => (
-                <Home size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
-              ),
-            }}
-          />
-          <Tabs.Screen
             name="inventory"
             options={{
               title: 'Inventário',
               tabBarIcon: ({ focused, color }) => (
-                <Package size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+                <Package size={focused ? 26 : 22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />
@@ -235,8 +228,18 @@ export default function AppLayout() {
             options={{
               title: 'Finanças',
               tabBarIcon: ({ focused, color }) => (
-                <Wallet size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+                <Wallet size={focused ? 26 : 22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
+            }}
+          />
+          <Tabs.Screen
+            name="dashboard"
+            options={{
+              title: 'Início',
+              tabBarIcon: ({ focused, color }) => (
+                <Home size={focused ? 30 : 24} color={color} strokeWidth={focused ? 2 : 1.5} />
+              ),
+              tabBarLabelStyle: { fontSize: 12 },
             }}
           />
           <Tabs.Screen
@@ -244,16 +247,16 @@ export default function AppLayout() {
             options={{
               title: 'Tarefas',
               tabBarIcon: ({ focused, color }) => (
-                <CheckSquare size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+                <CheckSquare size={focused ? 26 : 22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />
           <Tabs.Screen
             name="settings"
             options={{
-              title: 'Casa',
+              title: 'Configurações',
               tabBarIcon: ({ focused, color }) => (
-                <Settings size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+                <Settings size={focused ? 26 : 22} color={color} strokeWidth={focused ? 2 : 1.5} />
               ),
             }}
           />
