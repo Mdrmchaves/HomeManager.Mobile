@@ -4,6 +4,7 @@ import { useHousehold } from '../../contexts/HouseholdContext';
 import { UserService } from '../../services/user.service';
 import { FinanceSummaryCard } from '../../components/dashboard/FinanceSummaryCard';
 import { InventorySummaryCard } from '../../components/dashboard/InventorySummaryCard';
+import { TasksSummaryCard } from '../../components/dashboard/TasksSummaryCard';
 import { Colors } from '../../constants/colors';
 
 function greeting() {
@@ -36,6 +37,7 @@ export default function DashboardScreen() {
 
       <FinanceSummaryCard householdId={selectedHousehold.id} />
       <InventorySummaryCard householdId={selectedHousehold.id} />
+      <TasksSummaryCard householdId={selectedHousehold.id} />
     </ScrollView>
   );
 }
