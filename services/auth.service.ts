@@ -31,6 +31,7 @@ setAuthTokenGetter(async () => {
   if (!refreshPromise) {
     refreshPromise = supabase.auth.refreshSession()
       .then(({ data }) => data.session?.access_token ?? null)
+      .catch(() => null) // refresh token inválido → null → api recebe 401 → signOut automático
       .finally(() => { refreshPromise = null; });
   }
 
@@ -60,6 +61,11 @@ export const AuthService = {
 
   signOut: async () => {
     const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  },
+
+  resetPasswordForEmail: async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;
   },
 

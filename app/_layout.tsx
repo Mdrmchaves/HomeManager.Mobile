@@ -4,6 +4,7 @@ import { useFonts, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-font
 import { AuthProvider } from '../contexts/AuthContext';
 import { AuthGuard } from '../components/AuthGuard';
 import { HouseholdProvider } from '../contexts/HouseholdContext';
+import { ToastProvider } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -17,11 +18,13 @@ function RootLayoutInner() {
   if (!fontsLoaded || authLoading) return null;
 
   return (
-    <HouseholdProvider>
-      <AuthGuard>
-        <Slot />
-      </AuthGuard>
-    </HouseholdProvider>
+    <ToastProvider>
+      <HouseholdProvider>
+        <AuthGuard>
+          <Slot />
+        </AuthGuard>
+      </HouseholdProvider>
+    </ToastProvider>
   );
 }
 
