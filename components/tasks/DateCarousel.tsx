@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
@@ -12,7 +12,6 @@ const MONTHS_PT = [
 const ARROW_WIDTH = 40;
 const ITEM_WIDTH = 56;
 const DATE_AREA_WIDTH = Dimensions.get('window').width - ARROW_WIDTH * 2;
-// Padding so that item 0 and the last item can reach the center
 const SIDE_PADDING = (DATE_AREA_WIDTH - ITEM_WIDTH) / 2;
 const TODAY_INDEX = 60;
 const TOTAL = 121; // -60..+60
@@ -29,9 +28,6 @@ function buildDateWindow(): Date[] {
   return days;
 }
 
-const DATE_WINDOW = buildDateWindow();
-const THIS_YEAR = new Date().getFullYear();
-
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -47,8 +43,12 @@ interface DateCarouselProps {
 
 export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) {
   const flatListRef = useRef<FlatList<Date>>(null);
-  // Tracks current center index so arrow handlers don't need state
   const currentIndexRef = useRef(TODAY_INDEX);
+
+  // Built on mount so the window is anchored to the day the component first renders,
+  // not the day the module was imported (avoids stale dates after background overnight)
+  const dateWindow = useMemo(() => buildDateWindow(), []);
+  const thisYear = useMemo(() => new Date().getFullYear(), []);
 
   const scrollTo = useCallback((index: number, animated: boolean) => {
     const clamped = Math.max(0, Math.min(TOTAL - 1, index));
@@ -56,33 +56,60 @@ export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) 
     currentIndexRef.current = clamped;
   }, []);
 
-  function handleScrollEnd(event: { nativeEvent: { contentOffset: { x: number } } }) {
+  const handleScrollEnd = useCallback((event: { nativeEvent: { contentOffset: { x: number } } }) => {
     const index = Math.max(
       0,
       Math.min(TOTAL - 1, Math.round(event.nativeEvent.contentOffset.x / ITEM_WIDTH))
     );
     currentIndexRef.current = index;
-    onSelectDate(DATE_WINDOW[index]);
-  }
+    onSelectDate(dateWindow[index]);
+  }, [onSelectDate, dateWindow]);
 
-  function handlePrev() {
+  const handlePrev = useCallback(() => {
     const next = Math.max(0, currentIndexRef.current - 1);
     scrollTo(next, true);
-    onSelectDate(DATE_WINDOW[next]);
-  }
+    onSelectDate(dateWindow[next]);
+  }, [scrollTo, onSelectDate, dateWindow]);
 
-  function handleNext() {
+  const handleNext = useCallback(() => {
     const next = Math.min(TOTAL - 1, currentIndexRef.current + 1);
     scrollTo(next, true);
-    onSelectDate(DATE_WINDOW[next]);
-  }
+    onSelectDate(dateWindow[next]);
+  }, [scrollTo, onSelectDate, dateWindow]);
 
-  const today = DATE_WINDOW[TODAY_INDEX];
+  const today = dateWindow[TODAY_INDEX];
   const month = MONTHS_PT[selectedDate.getMonth()];
   const monthLabel =
-    selectedDate.getFullYear() === THIS_YEAR
+    selectedDate.getFullYear() === thisYear
       ? month
       : `${month} ${selectedDate.getFullYear()}`;
+
+  const getItemLayout = useCallback(
+    (_: ArrayLike<Date> | null | undefined, index: number) => ({
+      length: ITEM_WIDTH,
+      offset: SIDE_PADDING + ITEM_WIDTH * index,
+      index,
+    }),
+    []
+  );
+
+  const renderItem = useCallback(({ item: date }: { item: Date }) => {
+    const isSelected = isSameDay(date, selectedDate);
+    const isToday = isSameDay(date, today);
+    return (
+      <View style={styles.chip}>
+        {isSelected && <View style={[styles.chipBg, styles.chipSelectedBg]} />}
+        {!isSelected && isToday && <View style={[styles.chipBg, styles.chipTodayBg]} />}
+        <Text style={[styles.weekday, isSelected && styles.textSelected]}>
+          {WEEKDAYS_PT[date.getDay()]}
+        </Text>
+        <Text style={[styles.dayNum, isSelected && styles.textSelected]}>
+          {date.getDate()}
+        </Text>
+        {isToday && !isSelected && <View style={styles.todayDot} />}
+      </View>
+    );
+  }, [selectedDate, today]);
 
   return (
     <View style={styles.container}>
@@ -95,40 +122,21 @@ export function DateCarousel({ selectedDate, onSelectDate }: DateCarouselProps) 
 
         <FlatList
           ref={flatListRef}
-          data={DATE_WINDOW}
+          data={dateWindow}
           keyExtractor={(_, i) => String(i)}
           horizontal
           showsHorizontalScrollIndicator={false}
           snapToInterval={ITEM_WIDTH}
           decelerationRate="fast"
-          initialNumToRender={TOTAL}
-          maxToRenderPerBatch={TOTAL}
-          windowSize={TOTAL}
+          initialNumToRender={21}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          getItemLayout={getItemLayout}
           contentContainerStyle={{ paddingHorizontal: SIDE_PADDING }}
           contentOffset={{ x: TODAY_INDEX * ITEM_WIDTH, y: 0 }}
           onMomentumScrollEnd={handleScrollEnd}
           onScrollEndDrag={handleScrollEnd}
-          renderItem={({ item: date }) => {
-            const isSelected = isSameDay(date, selectedDate);
-            const isToday = isSameDay(date, today);
-            return (
-              <View
-                style={[
-                  styles.chip,
-                  isSelected && styles.chipSelected,
-                  !isSelected && isToday && styles.chipToday,
-                ]}
-              >
-                <Text style={[styles.weekday, isSelected && styles.textSelected]}>
-                  {WEEKDAYS_PT[date.getDay()]}
-                </Text>
-                <Text style={[styles.dayNum, isSelected && styles.textSelected]}>
-                  {date.getDate()}
-                </Text>
-                {isToday && !isSelected && <View style={styles.todayDot} />}
-              </View>
-            );
-          }}
+          renderItem={renderItem}
         />
 
         <TouchableOpacity style={styles.arrowBtn} onPress={handleNext} activeOpacity={0.6}>
@@ -172,10 +180,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 10,
   },
-  chipSelected: {
+  chipBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 10,
+  },
+  chipSelectedBg: {
     backgroundColor: Colors.primary,
   },
-  chipToday: {
+  chipTodayBg: {
     borderWidth: 1,
     borderColor: Colors.primary,
   },

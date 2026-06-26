@@ -7,6 +7,7 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
+import { useToast } from '../../contexts/ToastContext';
 import { Plus } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { TaskService } from '../../services/task.service';
@@ -19,8 +20,17 @@ import { formatDateParam, startOfToday } from '../../utils/taskDates';
 import type { Task } from '../../types/task';
 import TaskForm from './task-form';
 
+const ItemSeparator = () => <View style={styles.separator} />;
+
+const EmptyList = () => (
+  <View style={styles.empty}>
+    <Text style={styles.emptyText}>Nenhuma tarefa neste dia.</Text>
+  </View>
+);
+
 export default function TasksScreen() {
   const { selectedHousehold } = useHousehold();
+  const householdId = selectedHousehold?.id;
 
   const [selectedDate, setSelectedDate] = useState<Date>(() => startOfToday());
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -30,18 +40,16 @@ export default function TasksScreen() {
   const [showForm, setShowForm] = useState(false);
   const [editTask, setEditTask] = useState<Task | undefined>();
   const fetchingRef = useRef(false);
+  const { showToast } = useToast();
 
-  async function loadTasks(date: Date) {
+  const loadTasks = useCallback(async (date: Date) => {
     if (fetchingRef.current) return;
-    if (!selectedHousehold) return;
+    if (!householdId) return;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
-      const result = await TaskService.getTasksByDate(
-        selectedHousehold.id,
-        formatDateParam(date)
-      );
+      const result = await TaskService.getTasksByDate(householdId, formatDateParam(date));
       setTasks(result ?? []);
     } catch {
       setError('Erro ao carregar tarefas.');
@@ -49,15 +57,21 @@ export default function TasksScreen() {
       fetchingRef.current = false;
       setLoading(false);
     }
-  }
+  }, [householdId]);
 
+  // Reload when date or household changes while already focused
   useEffect(() => {
     loadTasks(selectedDate);
     setExpandedTaskId(null);
-  }, [selectedDate, selectedHousehold?.id]);
+  }, [loadTasks, selectedDate]);
+
+  // Reload when regaining focus (e.g. returning from another tab); clear on blur
+  const refreshRef = useRef<() => void>(() => {});
+  refreshRef.current = () => loadTasks(selectedDate);
 
   useFocusEffect(
     useCallback(() => {
+      refreshRef.current();
       return () => {
         setTasks([]);
         setExpandedTaskId(null);
@@ -67,7 +81,7 @@ export default function TasksScreen() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  async function handleComplete(task: Task) {
+  const handleComplete = useCallback(async (task: Task) => {
     setExpandedTaskId(null);
     setTasks((prev) =>
       prev.map((t) =>
@@ -79,12 +93,12 @@ export default function TasksScreen() {
     try {
       await TaskService.completeTask(task.id);
     } catch {
-      Alert.alert('Erro', 'Não foi possível concluir a tarefa.');
+      showToast('Não foi possível concluir a tarefa.', 'error');
       loadTasks(selectedDate);
     }
-  }
+  }, [loadTasks, selectedDate, showToast]);
 
-  async function handleReopen(task: Task) {
+  const handleReopen = useCallback(async (task: Task) => {
     setExpandedTaskId(null);
     setTasks((prev) =>
       prev.map((t) =>
@@ -94,12 +108,12 @@ export default function TasksScreen() {
     try {
       await TaskService.reopenTask(task.id);
     } catch {
-      Alert.alert('Erro', 'Não foi possível reabrir a tarefa.');
+      showToast('Não foi possível reabrir a tarefa.', 'error');
       loadTasks(selectedDate);
     }
-  }
+  }, [loadTasks, selectedDate]);
 
-  function handleDelete(task: Task) {
+  const handleDelete = useCallback((task: Task) => {
     setExpandedTaskId(null);
     Alert.alert('Apagar tarefa', `Apagar "${task.title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
@@ -111,29 +125,41 @@ export default function TasksScreen() {
           try {
             await TaskService.deleteTask(task.id);
           } catch {
-            Alert.alert('Erro', 'Não foi possível apagar.');
+            showToast('Não foi possível apagar a tarefa.', 'error');
             loadTasks(selectedDate);
           }
         },
       },
     ]);
-  }
+  }, [loadTasks, selectedDate, showToast]);
 
-  function handleEdit(task: Task) {
+  const handleEdit = useCallback((task: Task) => {
     setExpandedTaskId(null);
     setEditTask(task);
     setShowForm(true);
-  }
+  }, []);
 
-  function openCreateForm() {
+  const openCreateForm = useCallback(() => {
     setEditTask(undefined);
     setShowForm(true);
-  }
+  }, []);
 
-  function handleSaved() {
+  const handleSaved = useCallback(() => {
     setShowForm(false);
     loadTasks(selectedDate);
-  }
+  }, [loadTasks, selectedDate]);
+
+  const renderItem = useCallback(({ item }: { item: Task }) => (
+    <TaskCard
+      task={item}
+      expanded={expandedTaskId === item.id}
+      onToggle={() => setExpandedTaskId((prev) => (prev === item.id ? null : item.id))}
+      onComplete={() => handleComplete(item)}
+      onReopen={() => handleReopen(item)}
+      onEdit={() => handleEdit(item)}
+      onDelete={() => handleDelete(item)}
+    />
+  ), [expandedTaskId, handleComplete, handleReopen, handleEdit, handleDelete]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -153,25 +179,9 @@ export default function TasksScreen() {
           keyExtractor={(t) => t.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TaskCard
-              task={item}
-              expanded={expandedTaskId === item.id}
-              onToggle={() =>
-                setExpandedTaskId((prev) => (prev === item.id ? null : item.id))
-              }
-              onComplete={() => handleComplete(item)}
-              onReopen={() => handleReopen(item)}
-              onEdit={() => handleEdit(item)}
-              onDelete={() => handleDelete(item)}
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>Nenhuma tarefa neste dia.</Text>
-            </View>
-          }
-          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          renderItem={renderItem}
+          ListEmptyComponent={EmptyList}
+          ItemSeparatorComponent={ItemSeparator}
         />
       )}
 
@@ -183,7 +193,7 @@ export default function TasksScreen() {
       {/* Form modal */}
       <TaskForm
         visible={showForm}
-        householdId={selectedHousehold?.id ?? ''}
+        householdId={householdId ?? ''}
         task={editTask}
         defaultDate={selectedDate}
         onClose={() => setShowForm(false)}
@@ -201,6 +211,9 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  separator: {
+    height: 8,
   },
   empty: {
     flex: 1,

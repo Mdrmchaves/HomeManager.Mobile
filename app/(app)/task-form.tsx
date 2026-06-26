@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { TaskService } from '../../services/task.service';
@@ -49,7 +50,6 @@ function formatDateLabel(date: Date | null): string {
   return `${date.getDate()} ${MONTHS_PT_SHORT[date.getMonth()]}`;
 }
 
-// Build options: Sem prazo, Hoje, Amanhã, + 12 more days
 function buildDateOptions(): Array<{ label: string; date: Date | null }> {
   const options: Array<{ label: string; date: Date | null }> = [
     { label: 'Sem prazo', date: null },
@@ -227,7 +227,6 @@ export default function TaskForm({
     }
   }
 
-  // Derived labels
   const assigneeLabel =
     members.find((m) => m.userId === assigneeId)?.user.name ?? 'Nenhum';
 
@@ -240,10 +239,9 @@ export default function TaskForm({
 
   const recurrenceDayLabel =
     recurrence === 'weekly'
-      ? WEEKDAYS_PT[recurrenceDay - 1] // recurrenceDay 1=Dom ... 7=Sáb
+      ? WEEKDAYS_PT[recurrenceDay - 1]
       : `Dia ${recurrenceDay}`;
 
-  // Picker options
   const recurrenceOptions: Array<{ label: string; value: RecurrenceOption }> = [
     { label: 'Nunca', value: 'never' },
     { label: 'Diária', value: 'daily' },
@@ -259,32 +257,26 @@ export default function TaskForm({
   }));
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.headerSide}>
-            <Text style={styles.cancelBtn}>Cancelar</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isEditing ? 'Editar tarefa' : 'Nova tarefa'}
-          </Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerSide}>
-            <Text style={[styles.saveBtn, saving && styles.saveBtnDisabled]}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
+      >
+        <View style={styles.sheet}>
+          {/* Handle */}
+          <View style={styles.handle} />
 
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>
+              {isEditing ? 'Editar tarefa' : 'Nova tarefa'}
+            </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
@@ -369,8 +361,21 @@ export default function TaskForm({
               </View>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={saving}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+              {saving
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.saveText}>{isEditing ? 'Guardar' : 'Criar'}</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* Date picker */}
       <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
@@ -456,44 +461,43 @@ export default function TaskForm({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
-    backgroundColor: Colors.background,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-  },
-  headerSide: {
-    minWidth: 70,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  cancelBtn: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-  },
-  saveBtn: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.primary,
-    textAlign: 'right',
-  },
-  saveBtnDisabled: {
-    opacity: 0.5,
-  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 8,
   },
   errorBox: {
     backgroundColor: '#FEE2E2',
@@ -517,7 +521,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -534,7 +538,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.error,
   },
   selector: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -544,6 +548,39 @@ const styles = StyleSheet.create({
   selectorText: {
     fontSize: 15,
     color: Colors.textPrimary,
+  },
+  footer: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  saveBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });
 

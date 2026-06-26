@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import {
   Circle,
@@ -16,13 +17,12 @@ const MONTHS_PT = [
   'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.',
 ];
 
-function formatDueLabel(task: Task): string {
+function formatDueLabel(task: Task, today: Date): string {
   if (task.status === 'completed') return 'Concluída';
   if (!task.dueDate) return 'Sem prazo';
 
   const due = new Date(task.dueDate);
   due.setHours(0, 0, 0, 0);
-  const today = startOfToday();
   const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
 
   if (diff === 0) return 'Hoje';
@@ -43,7 +43,7 @@ interface TaskCardProps {
   onDelete: () => void;
 }
 
-export function TaskCard({
+export const TaskCard = memo(function TaskCard({
   task,
   expanded,
   onToggle,
@@ -52,13 +52,14 @@ export function TaskCard({
   onEdit,
   onDelete,
 }: TaskCardProps) {
+  const today = startOfToday();
   const isOverdue =
     task.status === 'active' &&
     !!task.dueDate &&
-    new Date(task.dueDate) < startOfToday();
+    new Date(task.dueDate) < today;
   const isCompleted = task.status === 'completed';
   const isRecurring = !!task.recurrenceId;
-  const dueLabel = formatDueLabel(task);
+  const dueLabel = formatDueLabel(task, today);
 
   return (
     <TouchableOpacity
@@ -149,7 +150,7 @@ export function TaskCard({
       )}
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
