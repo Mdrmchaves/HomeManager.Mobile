@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useToast } from '../../contexts/ToastContext';
 import { ArrowLeft, Share2 } from 'lucide-react-native';
 import { HouseholdService } from '../../services/household.service';
 import { useHousehold } from '../../contexts/HouseholdContext';
@@ -39,6 +40,7 @@ export default function HouseholdSettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { showToast } = useToast();
 
   if (!selectedHousehold) return null;
   // Type assertion: null already guarded above; closures lose narrowing
@@ -53,7 +55,7 @@ export default function HouseholdSettingsScreen() {
       await HouseholdService.updateSettings(household.id, { name: name.trim() });
       await refreshHouseholds();
     } catch (e: unknown) {
-      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível guardar.');
+      showToast(e instanceof Error ? e.message : 'Não foi possível guardar.', 'error');
     } finally {
       setSavingName(false);
     }
@@ -66,7 +68,7 @@ export default function HouseholdSettingsScreen() {
       await HouseholdService.updateSettings(household.id, { defaultCurrency: currency });
       await refreshHouseholds();
     } catch (e: unknown) {
-      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível guardar.');
+      showToast(e instanceof Error ? e.message : 'Não foi possível guardar.', 'error');
     } finally {
       setSavingCurrency(false);
     }
@@ -100,7 +102,7 @@ export default function HouseholdSettingsScreen() {
       await refreshHouseholds();
       router.replace('/(app)/dashboard');
     } catch (e: unknown) {
-      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível eliminar.');
+      showToast(e instanceof Error ? e.message : 'Não foi possível eliminar.', 'error');
       setDeleting(false);
     }
   }
