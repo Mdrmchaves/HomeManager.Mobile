@@ -12,7 +12,6 @@ import {
   StyleSheet,
 } from 'react-native';
 import { X } from 'lucide-react-native';
-import { FinanceService } from '../../../services/finance.service';
 import { useFinance } from '../../../contexts/FinanceContext';
 import { useHousehold } from '../../../contexts/HouseholdContext';
 import {
@@ -58,6 +57,26 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// ── Máscara de moeda ──────────────────────────────────────────────────────────
+// Armazena apenas dígitos (ex: "12345" = R$ 123,45); os dois últimos são centavos.
+function toRawDigits(value: number): string {
+  return Math.round(value * 100).toString();
+}
+function rawToNumber(raw: string): number {
+  if (!raw) return 0;
+  return parseInt(raw, 10) / 100;
+}
+function formatCurrencyInput(raw: string): string {
+  if (!raw) return '';
+  return (parseInt(raw, 10) / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+function onlyDigits(text: string): string {
+  return text.replace(/\D/g, '').replace(/^0+/, '');
+}
+
 export function TransactionForm({ visible, transaction, prefill, onClose, onSaved, onDeleted }: Props) {
   const { selectedHousehold } = useHousehold();
   const {
@@ -65,15 +84,19 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
     planningItems,
     rates,
     activeMonth,
-    markAccountsDirty,
-    markDashboardDirty,
+    createTransaction,
+    updateTransaction,
   } = useFinance();
 
   const isEditing = !!transaction;
 
   const [type, setType] = useState<TransactionType>(transaction?.type ?? prefill?.type ?? 'expense');
   const [description, setDescription] = useState(transaction?.description ?? prefill?.description ?? '');
-  const [amount, setAmount] = useState(transaction?.amount?.toString() ?? prefill?.amount?.toString() ?? '');
+  const [amount, setAmount] = useState(
+    transaction?.amount != null ? toRawDigits(transaction.amount)
+      : prefill?.amount != null ? toRawDigits(prefill.amount)
+      : ''
+  );
   const [currency, setCurrency] = useState<SupportedCurrency>(
     (transaction?.currency as SupportedCurrency) ?? 'BRL'
   );
@@ -87,7 +110,9 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
   const [toAccountId, setToAccountId] = useState<string | undefined>(
     transaction?.toAccountId ?? undefined
   );
-  const [toAmount, setToAmount] = useState(transaction?.toAmount?.toString() ?? '');
+  const [toAmount, setToAmount] = useState(
+    transaction?.toAmount != null ? toRawDigits(transaction.toAmount) : ''
+  );
   const [planningItemId, setPlanningItemId] = useState<string | undefined>(
     transaction?.planningItemId ?? prefill?.planningItemId ?? undefined
   );
@@ -103,13 +128,18 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
     if (visible) {
       setType(transaction?.type ?? prefill?.type ?? 'expense');
       setDescription(transaction?.description ?? prefill?.description ?? '');
-      setAmount(transaction?.amount?.toString() ?? prefill?.amount?.toString() ?? '');
+      setAmount(
+        transaction?.amount != null ? toRawDigits(transaction.amount)
+          : prefill?.amount != null ? toRawDigits(prefill.amount)
+          : ''
+      );
       setCurrency((transaction?.currency as SupportedCurrency) ?? 'BRL');
       setDate(transaction?.date ?? toDateStr(new Date()));
       setCategory(transaction?.category ?? prefill?.category ?? undefined);
-      setAccountId(transaction?.accountId ?? prefill?.accountId ?? undefined);
+      const activeAccs = accounts.filter((a) => a.isActive);
+      setAccountId(transaction?.accountId ?? prefill?.accountId ?? activeAccs[0]?.id ?? undefined);
       setToAccountId(transaction?.toAccountId ?? undefined);
-      setToAmount(transaction?.toAmount?.toString() ?? '');
+      setToAmount(transaction?.toAmount != null ? toRawDigits(transaction.toAmount) : '');
       setPlanningItemId(transaction?.planningItemId ?? prefill?.planningItemId ?? undefined);
       setRefMonth(transaction?.refMonth ?? activeMonth);
       setError(null);
@@ -131,8 +161,8 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
     const fromAcc = accounts.find((a) => a.id === accountId);
     const toAcc = accounts.find((a) => a.id === toAccountId);
     if (!fromAcc || !toAcc || !rates) { setExchangeRateHint(''); return; }
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) { setExchangeRateHint(''); return; }
+    const amt = rawToNumber(amount);
+    if (!amount || amt <= 0) { setExchangeRateHint(''); return; }
 
     const fromRate = rates.rates[fromAcc.currency] ?? 1;
     const toRate = rates.rates[toAcc.currency] ?? 1;
@@ -141,12 +171,12 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
       setExchangeRateHint('');
       if (!isEditing) setToAmount(amount);
     } else {
-      const converted = Math.round((amt * fromRate / toRate) * 100) / 100;
+      const converted = amt * fromRate / toRate;
       const effectiveRate = Math.round((fromRate / toRate) * 10000) / 10000;
       setExchangeRateHint(
         `Taxa de câmbio estimada: 1 ${fromAcc.currency} ≈ ${effectiveRate} ${toAcc.currency}`
       );
-      if (!isEditing) setToAmount(converted.toString());
+      if (!isEditing) setToAmount(toRawDigits(converted));
     }
   }, [accountId, toAccountId, amount, isTransfer, accounts, rates, isEditing]);
 
@@ -162,16 +192,21 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
     }
     setPlanningItemId(item.id);
     setDescription(item.description);
-    setAmount(item.amount.toString());
+    setAmount(toRawDigits(item.amount));
     setCurrency(item.currency as SupportedCurrency);
     if (item.category) setCategory(item.category);
   }
 
   async function handleSave() {
     if (!description.trim()) { setError('A descrição é obrigatória.'); return; }
-    if (!amount || isNaN(Number(amount))) { setError('Valor inválido.'); return; }
+    if (!amount || rawToNumber(amount) <= 0) { setError('Valor inválido.'); return; }
+    if (!accountId) { setError('Seleciona uma conta.'); return; }
     if (!selectedHousehold) return;
     if (isTransfer && !toAccountId) { setError('Seleciona a conta de destino.'); return; }
+    if (!/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(date)) {
+      setError('Data inválida. Use o formato AAAA-MM-DD.');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -180,23 +215,21 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
         householdId: selectedHousehold.id,
         accountId: accountId ?? undefined,
         description: description.trim(),
-        amount: Number(amount),
+        amount: rawToNumber(amount),
         currency,
         date,
         type,
         category: isExpense ? category : undefined,
         toAccountId: isTransfer ? toAccountId : undefined,
-        toAmount: isTransfer && toAmount ? Number(toAmount) : undefined,
+        toAmount: isTransfer && toAmount ? rawToNumber(toAmount) : undefined,
         planningItemId: planningItemId ?? undefined,
         refMonth,
       };
 
       const saved = isEditing
-        ? await FinanceService.updateTransaction(transaction.id, payload)
-        : await FinanceService.createTransaction(payload);
+        ? await updateTransaction(transaction.id, payload)
+        : await createTransaction(payload);
 
-      markAccountsDirty();
-      markDashboardDirty();
       onSaved(saved);
     } catch (e: any) {
       setError(e.message ?? 'Erro ao salvar transação.');
@@ -237,7 +270,10 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
                       borderColor: TYPE_COLORS[t.value],
                     },
                   ]}
-                  onPress={() => setType(t.value)}
+                  onPress={() => {
+                    setType(t.value);
+                    if (t.value !== 'expense') setPlanningItemId(undefined);
+                  }}
                 >
                   <Text
                     style={[
@@ -301,11 +337,11 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
             <View style={styles.amountRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                value={amount}
-                onChangeText={setAmount}
+                value={formatCurrencyInput(amount)}
+                onChangeText={(t) => setAmount(onlyDigits(t))}
                 placeholder="0,00"
                 placeholderTextColor={Colors.textSecondary}
-                keyboardType="numeric"
+                keyboardType="number-pad"
               />
               <View style={styles.currencyRow}>
                 {SUPPORTED_CURRENCIES.map((c) => (
@@ -332,18 +368,18 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
               placeholderTextColor={Colors.textSecondary}
             />
 
-            {/* Mês de referência — 12 meses do ano com scroll */}
+            {/* Mês de referência */}
             <Text style={styles.label}>Mês de referência</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.monthRow}>
-                {buildYearMonthOptions(activeMonth).map((m) => (
+                {Array.from({ length: 7 }, (_, i) => addMonths(activeMonth, i - 3)).map((ym) => (
                   <TouchableOpacity
-                    key={m.value}
-                    style={[styles.monthChip, refMonth === m.value && styles.monthChipActive]}
-                    onPress={() => setRefMonth(m.value)}
+                    key={ym}
+                    style={[styles.monthChip, refMonth === ym && styles.monthChipActive]}
+                    onPress={() => setRefMonth(ym)}
                   >
-                    <Text style={[styles.monthChipText, refMonth === m.value && styles.monthChipTextActive]}>
-                      {m.label}
+                    <Text style={[styles.monthChipText, refMonth === ym && styles.monthChipTextActive]}>
+                      {ymLabel(ym)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -353,14 +389,6 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
             {/* Conta de origem */}
             <Text style={styles.label}>{isTransfer ? 'Conta de origem' : 'Conta'}</Text>
             <View style={styles.accountList}>
-              <TouchableOpacity
-                style={[styles.accountChip, !accountId && styles.accountChipActive]}
-                onPress={() => setAccountId(undefined)}
-              >
-                <Text style={[styles.accountChipText, !accountId && styles.accountChipTextActive]}>
-                  Sem conta
-                </Text>
-              </TouchableOpacity>
               {activeAccounts.map((acc) => (
                 <TouchableOpacity
                   key={acc.id}
@@ -412,11 +440,11 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
                 </Text>
                 <TextInput
                   style={styles.input}
-                  value={toAmount}
-                  onChangeText={(v) => { setToAmount(v); setExchangeRateHint(''); }}
+                  value={formatCurrencyInput(toAmount)}
+                  onChangeText={(v) => { setToAmount(onlyDigits(v)); setExchangeRateHint(''); }}
                   placeholder={toAccountCurrency ? `0,00 ${toAccountCurrency}` : '0,00'}
                   placeholderTextColor={Colors.textSecondary}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                 />
                 {!!exchangeRateHint && (
                   <Text style={styles.rateHint}>{exchangeRateHint}</Text>
@@ -477,17 +505,17 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
   );
 }
 
-// Gera os 12 meses do ano corrente com nomes completos
-const MONTHS_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
-function buildYearMonthOptions(activeMonth: string): { value: string; label: string }[] {
-  const year = activeMonth.split('-')[0];
-  return MONTHS_PT.map((name, i) => ({
-    value: `${year}-${String(i + 1).padStart(2, '0')}`,
-    label: name,
-  }));
+const MONTHS_PT_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function addMonths(ym: string, n: number): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function ymLabel(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTHS_PT_SHORT[m - 1]} ${y}`;
 }
 
 const TYPE_COLORS: Record<TransactionType, string> = {

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -42,11 +42,26 @@ export function AccountForm({ visible, account, onClose, onSaved }: Props) {
   );
   const [type, setType] = useState<AccountType>(account?.type ?? 'account');
   const [closeDay, setCloseDay] = useState(account?.closeDay?.toString() ?? '');
+  const [closeMonthIsNext, setCloseMonthIsNext] = useState(account?.closeMonthIsNext ?? false);
   const [dueDay, setDueDay] = useState(account?.dueDay?.toString() ?? '');
   const [limit, setLimit] = useState(account?.limit?.toString() ?? '');
   const [balance, setBalance] = useState(account?.balance?.toString() ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setName(account?.name ?? '');
+      setCurrency((account?.currency as SupportedCurrency) ?? 'BRL');
+      setType(account?.type ?? 'account');
+      setCloseDay(account?.closeDay?.toString() ?? '');
+      setCloseMonthIsNext(account?.closeMonthIsNext ?? false);
+      setDueDay(account?.dueDay?.toString() ?? '');
+      setLimit(account?.limit?.toString() ?? '');
+      setBalance(account?.balance?.toString() ?? '');
+      setError(null);
+    }
+  }, [visible]);
 
   const isCC = type === 'cc';
   const isEditing = !!account;
@@ -63,7 +78,7 @@ export function AccountForm({ visible, account, onClose, onSaved }: Props) {
         currency,
         type,
         closeDay: isCC && closeDay ? Number(closeDay) : undefined,
-        closeMonthIsNext: false,
+        closeMonthIsNext: isCC ? closeMonthIsNext : false,
         dueDay: isCC && dueDay ? Number(dueDay) : undefined,
         limit: isCC && limit ? Number(limit) : undefined,
         balance: balance ? Number(balance) : undefined,
@@ -167,6 +182,23 @@ export function AccountForm({ visible, account, onClose, onSaved }: Props) {
                   placeholderTextColor={Colors.textSecondary}
                   keyboardType="numeric"
                 />
+
+                <TouchableOpacity
+                  style={styles.toggleRow}
+                  onPress={() => setCloseMonthIsNext((v) => !v)}
+                >
+                  <View style={[styles.toggleBox, closeMonthIsNext && styles.toggleBoxActive]}>
+                    {closeMonthIsNext && <Text style={styles.toggleCheck}>✓</Text>}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleLabel}>Fatura fecha no mês seguinte</Text>
+                    {closeMonthIsNext && (
+                      <Text style={styles.toggleHint}>
+                        {`Transações no dia 1–${closeDay || '?'} pertencem à fatura do mês anterior.`}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
 
                 <Text style={styles.label}>Dia de vencimento</Text>
                 <TextInput
@@ -292,6 +324,43 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  toggleBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  toggleBoxActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  toggleCheck: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   error: {
     color: Colors.error,

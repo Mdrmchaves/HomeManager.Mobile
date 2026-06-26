@@ -8,9 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   StyleSheet,
 } from 'react-native';
+import { useToast } from '../../../contexts/ToastContext';
 import { FinanceService } from '../../../services/finance.service';
 import { useFinance } from '../../../contexts/FinanceContext';
 import { useHousehold } from '../../../contexts/HouseholdContext';
@@ -24,7 +24,6 @@ import {
 } from '../../../constants/finance-constants';
 import { Colors } from '../../../constants/colors';
 import type { FinanceCategory } from '../../../types/finance';
-import type { SupportedCurrency } from '../../../constants/finance-constants';
 
 // #7 — padrões 25/30/25/10/5/5 na ordem lf, cf, co, mt, pr, es
 const DEFAULT_GOALS: Record<FinanceCategory, string> = {
@@ -39,9 +38,8 @@ const DEFAULT_GOALS: Record<FinanceCategory, string> = {
 export function BudgetTab() {
   const { selectedHousehold } = useHousehold();
   const { budget, rates, reloadBudgetAndRates, markDashboardDirty } = useFinance();
+  const { showToast } = useToast();
 
-  const [income, setIncome] = useState('');
-  const [incomeCurrency, setIncomeCurrency] = useState<SupportedCurrency>('BRL');
   const [goals, setGoals] = useState<Record<FinanceCategory, string>>(DEFAULT_GOALS);
 
   const [savingBudget, setSavingBudget] = useState(false);
@@ -50,12 +48,9 @@ export function BudgetTab() {
   // Popula campos quando dados chegam do contexto
   useEffect(() => {
     if (budget) {
-      setIncome(budget.income > 0 ? budget.income.toString() : '');
-      setIncomeCurrency((budget.incomeCurrency as SupportedCurrency) ?? 'BRL');
       const g: Record<FinanceCategory, string> = {} as any;
       FINANCE_CATEGORIES.forEach((cat) => {
         const val = budget.goals[cat] ?? 0;
-        // Se todos zero (orçamento vazio), aplica padrões
         g[cat] = val > 0 ? val.toString() : DEFAULT_GOALS[cat];
       });
       setGoals(g);
@@ -75,21 +70,23 @@ export function BudgetTab() {
 
   async function saveBudget() {
     if (!selectedHousehold) return;
+    if (goalsTotal > 100) {
+      showToast('A soma das metas não pode ultrapassar 100%.', 'error');
+      return;
+    }
     setSavingBudget(true);
     try {
       await FinanceService.upsertBudget({
         householdId: selectedHousehold.id,
-        income: Number(income) || 0,
-        incomeCurrency,
         goals: Object.fromEntries(
           FINANCE_CATEGORIES.map((cat) => [cat, Number(goals[cat]) || 0])
         ),
       });
       await reloadBudgetAndRates();
       markDashboardDirty();
-      Alert.alert('Orçamento salvo!');
+      showToast('Orçamento guardado.', 'success');
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Erro ao salvar orçamento.');
+      showToast(e.message ?? 'Erro ao salvar orçamento.', 'error');
     } finally {
       setSavingBudget(false);
     }
@@ -117,32 +114,11 @@ export function BudgetTab() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Orçamento</Text>
 
-          <Text style={styles.label}>Receita mensal</Text>
-          <View style={styles.incomeRow}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={income}
-              onChangeText={setIncome}
-              placeholder="0,00"
-              placeholderTextColor={Colors.textSecondary}
-              keyboardType="numeric"
-            />
-            <View style={styles.currencyPicker}>
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.currChip, incomeCurrency === c && styles.currChipActive]}
-                  onPress={() => setIncomeCurrency(c)}
-                >
-                  <Text style={[styles.currChipText, incomeCurrency === c && styles.currChipTextActive]}>
-                    {c}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          <Text style={styles.hint}>
+            As metas são calculadas automaticamente sobre a receita real do mês (transações de entrada).
+          </Text>
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Metas por categoria (%)</Text>
+          <Text style={[styles.label, { marginTop: 4 }]}>Metas por categoria (%)</Text>
           <Text style={styles.hint}>
             Soma: {goalsTotal.toFixed(0)}%{goalsTotal > 100 ? ' ⚠️ acima de 100%' : ''}
           </Text>
@@ -189,15 +165,25 @@ export function BudgetTab() {
           {SUPPORTED_CURRENCIES.map((c) => {
             const value = rates?.rates[c];
             const hasValue = value !== undefined && value !== null;
+            const isBase = c === (selectedHousehold?.defaultCurrency ?? 'BRL');
             return (
               <View key={c} style={styles.rateRow}>
                 <Text style={styles.rateSymbol}>{CURRENCY_SYMBOLS[c]}</Text>
                 <View style={styles.rateInfo}>
-                  <Text style={styles.rateCode}>{c}</Text>
+                  <View style={styles.rateCodeRow}>
+                    <Text style={styles.rateCode}>{c}</Text>
+                    {isBase && (
+                      <View style={styles.baseBadge}>
+                        <Text style={styles.baseBadgeText}>Principal</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.rateName}>{CURRENCY_LABELS[c]}</Text>
                 </View>
                 <Text style={[styles.rateValue, !hasValue && styles.rateValueEmpty]}>
-                  {hasValue ? value!.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '—'}
+                  {hasValue
+                    ? `= ${value!.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} BRL`
+                    : '—'}
                 </Text>
               </View>
             );
@@ -353,20 +339,37 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
+  rateCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   rateCode: {
     fontSize: 13,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  baseBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  baseBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   rateName: {
     fontSize: 11,
     color: Colors.textSecondary,
   },
   rateValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: Colors.textPrimary,
-    minWidth: 80,
     textAlign: 'right',
   },
   rateValueEmpty: {
