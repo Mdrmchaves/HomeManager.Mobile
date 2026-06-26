@@ -12,7 +12,6 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
 import { usePertences } from '../../../contexts/PertencesContext';
 import { InventoryService } from '../../../services/inventory.service';
-import { LocationService } from '../../../services/location.service';
 import { StorageService } from '../../../services/storage.service';
 import { Colors } from '../../../constants/colors';
 import {
@@ -20,11 +19,8 @@ import {
   DESTINATION_RESOLVE_OPTIONS,
 } from '../../../constants/destinations';
 import InventoryItemRow from '@/components/inventory/InventoryItemRow';
-import ItemMenuProvider from '@/components/ItemMenuProvider';
 import ItemForm from './item-form';
 import type { InventoryItem } from '../../../types/inventory-item';
-import type { Location } from '../../../types/location';
-import type { MenuAction } from '@/contexts/ItemMenuContext';
 
 const PAGE_SIZE = 30;
 
@@ -41,7 +37,7 @@ export default function LocationDetailScreen() {
   const router = useRouter();
   const { locationId, locationName } = useLocalSearchParams<{ locationId: string; locationName: string }>();
   const { selectedHousehold } = useHousehold();
-  const { detailCache, setDetailCache, refreshCounts } = usePertences();
+  const { locations, detailCache, setDetailCache, refreshCounts } = usePertences();
 
   const isNullLocation = locationId === 'null';
   const decodedName = decodeURIComponent(locationName ?? '');
@@ -49,7 +45,6 @@ export default function LocationDetailScreen() {
   // ── Dados ──
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
-  const [locations, setLocations] = useState<Location[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -62,6 +57,7 @@ export default function LocationDetailScreen() {
   // ── Item form ──
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   // ── Refs ──
   const fetchingRef = useRef(false);
@@ -143,7 +139,6 @@ export default function LocationDetailScreen() {
       return;
     }
 
-    LocationService.getLocations(selectedHousehold?.id ?? '').then(setLocations).catch(() => {});
     loadPage(1, true);
   }, [selectedHousehold?.id, locationId]);
 
@@ -203,29 +198,11 @@ export default function LocationDetailScreen() {
     }
   }
 
-  function menuActionsForItem(item: InventoryItem): MenuAction[] {
-    return [
-      {
-        label: 'Editar',
-        onPress: () => { setEditingItem(item); setShowItemForm(true); },
-      },
-      {
-        label: 'Dar saída',
-        onPress: () => { setResolveTargetItem(item); setActionError(null); setShowItemResolvePicker(true); },
-      },
-      {
-        label: 'Eliminar',
-        destructive: true,
-        onPress: () => { setDeleteTargetItem(item); setActionError(null); setShowItemDeleteConfirm(true); },
-      },
-    ];
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <ItemMenuProvider>
-      <View style={styles.root}>
+    <View style={styles.root}>
 
         {/* Header */}
         <View style={styles.header}>
@@ -292,8 +269,11 @@ export default function LocationDetailScreen() {
                 item={item}
                 isLast={index === items.length - 1}
                 photoUrls={photoUrls}
-                onEdit={() => { setEditingItem(item); setShowItemForm(true); }}
-                menuActions={menuActionsForItem(item)}
+                expanded={expandedItemId === item.id}
+                onToggle={() => setExpandedItemId((prev) => prev === item.id ? null : item.id)}
+                onEdit={() => { setExpandedItemId(null); setEditingItem(item); setShowItemForm(true); }}
+                onResolve={() => { setExpandedItemId(null); setResolveTargetItem(item); setActionError(null); setShowItemResolvePicker(true); }}
+                onDelete={() => { setExpandedItemId(null); setDeleteTargetItem(item); setActionError(null); setShowItemDeleteConfirm(true); }}
               />
             )}
             onEndReachedThreshold={0.3}
@@ -408,7 +388,6 @@ export default function LocationDetailScreen() {
           />
         )}
       </View>
-    </ItemMenuProvider>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,12 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
 import { usePertences } from '../../../contexts/PertencesContext';
 import { InventoryService } from '../../../services/inventory.service';
-import { LocationService } from '../../../services/location.service';
 import { StorageService } from '../../../services/storage.service';
 import { Colors } from '../../../constants/colors';
 import { DESTINATION_RESOLVE_OPTIONS } from '../../../constants/destinations';
 import InventoryItemRow from '@/components/inventory/InventoryItemRow';
-import ItemMenuProvider from '@/components/ItemMenuProvider';
 import ItemForm from './item-form';
 import type { InventoryItem } from '../../../types/inventory-item';
-import type { Location } from '../../../types/location';
-import type { MenuAction } from '@/contexts/ItemMenuContext';
 
 const PAGE_SIZE = 30;
 
@@ -29,7 +25,7 @@ export default function DestinationDetailScreen() {
   const router = useRouter();
   const { destination, label } = useLocalSearchParams<{ destination: string; label: string }>();
   const { selectedHousehold } = useHousehold();
-  const { detailCache, setDetailCache, refreshCounts } = usePertences();
+  const { locations, detailCache, setDetailCache, refreshCounts } = usePertences();
 
   const isNullDestination = destination === 'null';
   const decodedLabel = decodeURIComponent(label ?? '');
@@ -37,7 +33,6 @@ export default function DestinationDetailScreen() {
   // ── Dados ──
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
-  const [locations, setLocations] = useState<Location[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -47,6 +42,7 @@ export default function DestinationDetailScreen() {
   // ── Item form ──
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   // ── Refs ──
   const fetchingRef = useRef(false);
@@ -118,7 +114,6 @@ export default function DestinationDetailScreen() {
       return;
     }
 
-    LocationService.getLocations(selectedHousehold?.id ?? '').then(setLocations).catch(() => {});
     loadPage(1, true);
   }, [selectedHousehold?.id, destination]);
 
@@ -140,19 +135,15 @@ export default function DestinationDetailScreen() {
 
   // ── Agrupar itens por localização para divisores estáticos ────────────────
 
-  type Section = { title: string; data: InventoryItem[] };
-
-  function buildSections(allItems: InventoryItem[]): Section[] {
+  const sections = useMemo(() => {
     const map = new Map<string, InventoryItem[]>();
-    for (const item of allItems) {
+    for (const item of items) {
       const key = item.locationName ?? 'Sem localização';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     }
     return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
-  }
-
-  const sections = buildSections(items);
+  }, [items]);
 
   // ── Item actions ──────────────────────────────────────────────────────────
 
@@ -184,29 +175,11 @@ export default function DestinationDetailScreen() {
     }
   }
 
-  function menuActionsForItem(item: InventoryItem): MenuAction[] {
-    return [
-      {
-        label: 'Editar',
-        onPress: () => { setEditingItem(item); setShowItemForm(true); },
-      },
-      {
-        label: 'Dar saída',
-        onPress: () => { setResolveTargetItem(item); setActionError(null); setShowItemResolvePicker(true); },
-      },
-      {
-        label: 'Eliminar',
-        destructive: true,
-        onPress: () => { setDeleteTargetItem(item); setActionError(null); setShowItemDeleteConfirm(true); },
-      },
-    ];
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <ItemMenuProvider>
-      <View style={styles.root}>
+    <View style={styles.root}>
 
         {/* Header */}
         <View style={styles.header}>
@@ -257,8 +230,11 @@ export default function DestinationDetailScreen() {
                 item={item}
                 isLast={index === section.data.length - 1}
                 photoUrls={photoUrls}
-                onEdit={() => { setEditingItem(item); setShowItemForm(true); }}
-                menuActions={menuActionsForItem(item)}
+                expanded={expandedItemId === item.id}
+                onToggle={() => setExpandedItemId((prev) => prev === item.id ? null : item.id)}
+                onEdit={() => { setExpandedItemId(null); setEditingItem(item); setShowItemForm(true); }}
+                onResolve={() => { setExpandedItemId(null); setResolveTargetItem(item); setActionError(null); setShowItemResolvePicker(true); }}
+                onDelete={() => { setExpandedItemId(null); setDeleteTargetItem(item); setActionError(null); setShowItemDeleteConfirm(true); }}
               />
             )}
             onEndReachedThreshold={0.3}
@@ -365,7 +341,6 @@ export default function DestinationDetailScreen() {
           />
         )}
       </View>
-    </ItemMenuProvider>
   );
 }
 

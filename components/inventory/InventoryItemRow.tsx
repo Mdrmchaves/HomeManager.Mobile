@@ -1,53 +1,49 @@
-import { useRef } from 'react';
+import { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
+import { Edit3, Trash2, LogOut } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { getDestinationMeta, getDestinationLabel, DEFAULT_BAR_COLOR } from '@/constants/destinations';
-import { useItemMenu } from '@/contexts/ItemMenuContext';
-import type { MenuAction } from '@/contexts/ItemMenuContext';
-import { STATUS_BAR_HEIGHT } from '@/app/(app)/_layout';
 import type { InventoryItem } from '@/types/inventory-item';
 
 export { getDestinationLabel };
-
-// ─── InventoryItemRow ─────────────────────────────────────────────────────────
 
 type Props = {
   item: InventoryItem;
   isLast: boolean;
   photoUrls: Record<string, string>;
+  expanded: boolean;
+  onToggle: () => void;
   onEdit: () => void;
-  menuActions: MenuAction[];
+  onResolve: () => void;
+  onDelete: () => void;
 };
 
-export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menuActions }: Props) {
-  const { openMenu } = useItemMenu();
-  const rowRef = useRef<View>(null);
+function InventoryItemRow({
+  item,
+  isLast,
+  photoUrls,
+  expanded,
+  onToggle,
+  onEdit,
+  onResolve,
+  onDelete,
+}: Props) {
   const destMeta = getDestinationMeta(item.destination);
   const signedUrl = item.photoUrl ? photoUrls[item.photoUrl] : null;
   const barColor = destMeta?.barColor ?? DEFAULT_BAR_COLOR;
 
   return (
-    <View ref={rowRef}>
+    <View style={[itemStyles.card, expanded && itemStyles.cardExpanded]}>
       <TouchableOpacity
         style={itemStyles.row}
-        onPress={onEdit}
-        delayLongPress={400}
-        onLongPress={() => {
-          rowRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
-            openMenu(
-              { id: item.id, name: item.name },
-              { top: pageY - STATUS_BAR_HEIGHT, left: pageX, width: _w, itemHeight: _h },
-              menuActions
-            );
-          });
-        }}
-        activeOpacity={0.7}
+        onLongPress={onToggle}
+        onPress={expanded ? onToggle : undefined}
+        delayLongPress={350}
+        activeOpacity={0.75}
       >
-        {/* Barra colorida */}
         <View style={[itemStyles.colorBar, { backgroundColor: barColor }]} />
 
-        {/* Photo */}
         {signedUrl ? (
           <Image
             source={{ uri: signedUrl }}
@@ -62,7 +58,6 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
           </View>
         )}
 
-        {/* Info */}
         <View style={itemStyles.info}>
           <Text style={itemStyles.name} numberOfLines={1}>
             {item.name}
@@ -86,27 +81,59 @@ export default function InventoryItemRow({ item, isLast, photoUrls, onEdit, menu
           )}
         </View>
       </TouchableOpacity>
-      <View style={itemStyles.divider} />
+
+      {expanded && (
+        <View style={itemStyles.accordion}>
+          <View style={itemStyles.accordionDivider} />
+          <View style={itemStyles.accordionActions}>
+            <TouchableOpacity style={itemStyles.accordionBtn} onPress={onEdit}>
+              <Edit3 size={14} color={Colors.primary} strokeWidth={2} />
+              <Text style={[itemStyles.accordionBtnText, { color: Colors.primary }]}>Editar</Text>
+            </TouchableOpacity>
+            <View style={itemStyles.accordionSep} />
+            <TouchableOpacity style={itemStyles.accordionBtn} onPress={onResolve}>
+              <LogOut size={14} color={Colors.primary} strokeWidth={2} />
+              <Text style={[itemStyles.accordionBtnText, { color: Colors.primary }]}>Dar saída</Text>
+            </TouchableOpacity>
+            <View style={itemStyles.accordionSep} />
+            <TouchableOpacity style={itemStyles.accordionBtn} onPress={onDelete}>
+              <Trash2 size={14} color={Colors.error} strokeWidth={2} />
+              <Text style={[itemStyles.accordionBtnText, { color: Colors.error }]}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {!expanded && <View style={itemStyles.divider} />}
     </View>
   );
 }
 
-// ─── Item row styles ──────────────────────────────────────────────────────────
+export default memo(InventoryItemRow);
 
 const itemStyles = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  cardExpanded: {
+    borderColor: Colors.primary,
+  },
   row: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     gap: 12,
-    minHeight: 80,
+    minHeight: 72,
   },
   divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: 5,
+    height: 0,
   },
   colorBar: {
     position: 'absolute',
@@ -114,19 +141,17 @@ const itemStyles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    borderTopRightRadius: 2,
-    borderBottomRightRadius: 2,
   },
   photo: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 8,
   },
   photoPlaceholder: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -138,7 +163,7 @@ const itemStyles = StyleSheet.create({
   },
   name: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.textPrimary,
   },
   qty: {
@@ -165,5 +190,36 @@ const itemStyles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  accordion: {
+    paddingBottom: 4,
+  },
+  accordionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 12,
+    marginBottom: 4,
+  },
+  accordionActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+  },
+  accordionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  accordionBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  accordionSep: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 2,
   },
 });

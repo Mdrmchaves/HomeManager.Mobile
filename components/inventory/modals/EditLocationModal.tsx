@@ -5,12 +5,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  KeyboardAvoidingView,
   Platform,
+  StyleSheet,
 } from 'react-native';
+import { X } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-
-// ─── EditLocationModal ────────────────────────────────────────────────────────
 
 type Props = {
   visible: boolean;
@@ -42,130 +42,156 @@ export default function EditLocationModal({
   }, [visible, initialName, initialIcon]);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity
-        style={styles.modalBackdrop}
-        activeOpacity={1}
-        onPress={onClose}
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
       >
-        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar local</Text>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
 
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Editar local</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.body}>
+            <Text style={styles.label}>Nome</Text>
             <TextInput
-              style={styles.modalInput}
+              style={styles.input}
               placeholder="Nome do local"
               placeholderTextColor={Colors.textSecondary}
               value={name}
               onChangeText={setName}
               autoCapitalize="sentences"
             />
+
+            <Text style={styles.label}>Ícone (opcional)</Text>
             <TextInput
-              style={styles.modalInput}
-              placeholder="Emoji opcional (ex: 🍳)"
+              style={styles.input}
+              placeholder="Emoji (ex: 🍳)"
               placeholderTextColor={Colors.textSecondary}
               value={icon}
               onChangeText={setIcon}
             />
 
-            {!!error && <Text style={styles.errorText}>{error}</Text>}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={onClose}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalBtn,
-                  styles.modalBtnConfirm,
-                  (!name.trim() || saving) && styles.modalBtnDisabled,
-                ]}
-                onPress={() => onConfirm(name, icon)}
-                disabled={!name.trim() || saving}
-              >
-                <Text style={styles.modalBtnConfirmText}>
-                  {saving ? 'A salvar...' : 'Salvar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {!!error && <Text style={styles.error}>{error}</Text>}
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={saving}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, (!name.trim() || saving) && styles.saveBtnDisabled]}
+              onPress={() => onConfirm(name, icon)}
+              disabled={!name.trim() || saving}
+            >
+              <Text style={styles.saveText}>{saving ? 'A salvar...' : 'Salvar'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  modalBackdrop: {
+  overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  modalCard: {
+  sheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    gap: 12,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
   },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
     marginBottom: 4,
   },
-  modalInput: {
-    backgroundColor: Colors.background,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  body: {
+    padding: 20,
+    gap: 6,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 14,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     color: Colors.textPrimary,
+    backgroundColor: Colors.background,
   },
-  modalButtons: {
+  error: {
+    color: Colors.error,
+    fontSize: 13,
+    marginTop: 8,
+  },
+  footer: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
-  modalBtn: {
+  cancelBtn: {
     flex: 1,
     paddingVertical: 13,
-    borderRadius: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
-  modalBtnCancel: {
-    backgroundColor: Colors.border,
-  },
-  modalBtnCancelText: {
+  cancelText: {
     fontSize: 15,
-    color: Colors.textPrimary,
-    fontWeight: '500',
-  },
-  modalBtnConfirm: {
-    backgroundColor: Colors.primary,
-  },
-  modalBtnConfirmText: {
-    fontSize: 15,
-    color: '#ffffff',
     fontWeight: '600',
+    color: Colors.textSecondary,
   },
-  modalBtnDisabled: {
+  saveBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  saveBtnDisabled: {
     opacity: 0.5,
   },
-  errorText: {
-    fontSize: 13,
-    color: Colors.error,
-    textAlign: 'center',
+  saveText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

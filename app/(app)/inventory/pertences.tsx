@@ -1,14 +1,12 @@
-import { useRef, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   FlatList,
-  Modal,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
-import { Eye, EyeOff, ArrowLeftRight } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowLeftRight, Edit3, Trash2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
 import { usePertences } from '../../../contexts/PertencesContext';
@@ -19,7 +17,6 @@ import { getDestinationMeta, Destination } from '../../../constants/destinations
 import AddLocationModal from '@/components/inventory/modals/AddLocationModal';
 import EditLocationModal from '@/components/inventory/modals/EditLocationModal';
 import DeleteLocationConfirmModal from '@/components/inventory/modals/DeleteLocationConfirmModal';
-import { STATUS_BAR_HEIGHT } from '@/app/(app)/_layout';
 import type { LocationCount, DestinationCount } from '../../../types/inventory-counts';
 import type { Location } from '../../../types/location';
 
@@ -29,53 +26,65 @@ type ViewMode = 'location' | 'destination';
 
 // ─── LocationCard ─────────────────────────────────────────────────────────────
 
-const MENU_ESTIMATED_HEIGHT = 44 * 2 + 8; // 2 options + divider
-
 function LocationCard({
   lc,
+  expanded,
   onPress,
-  onMenuOpen,
+  onToggle,
+  onEdit,
+  onDelete,
 }: {
   lc: LocationCount;
+  expanded: boolean;
   onPress: () => void;
-  onMenuOpen?: (id: string, position: { top: number; right: number }) => void;
+  onToggle?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
-  const menuBtnRef = useRef<View>(null);
+  const hasMenu = !!onToggle;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.cardIconWrap}>
-        <Text style={styles.cardIcon} numberOfLines={1}>{lc.icon ?? '📦'}</Text>
-      </View>
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardName}>{lc.locationName}</Text>
-      </View>
-      <View style={styles.cardBadge}>
-        <Text style={styles.cardBadgeText}>{lc.count}</Text>
-      </View>
-      <Text style={styles.cardArrow}>›</Text>
-      {onMenuOpen && (
-        <View ref={menuBtnRef} collapsable={false}>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => {
-              menuBtnRef.current?.measure((_x, _y, _w, _h, _pageX, pageY) => {
-                const adjustedY = pageY - STATUS_BAR_HEIGHT;
-                const screenH = Dimensions.get('window').height - STATUS_BAR_HEIGHT;
-                const spaceBelow = screenH - (adjustedY + _h);
-                const top =
-                  spaceBelow >= MENU_ESTIMATED_HEIGHT
-                    ? adjustedY + _h + 4
-                    : adjustedY - MENU_ESTIMATED_HEIGHT - 4;
-                onMenuOpen(lc.locationId!, { top, right: 16 });
-              });
-            }}
-          >
-            <Text style={styles.menuDots}>⋮</Text>
-          </TouchableOpacity>
+    <View style={[styles.card, expanded && styles.cardExpanded]}>
+      <TouchableOpacity
+        style={styles.cardRow}
+        onPress={expanded ? onToggle : onPress}
+        onLongPress={hasMenu ? onToggle : undefined}
+        delayLongPress={350}
+        activeOpacity={0.75}
+      >
+        <View style={styles.cardIconWrap}>
+          <Text style={styles.cardIcon} numberOfLines={1}>{lc.icon ?? '📦'}</Text>
+        </View>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardName}>{lc.locationName}</Text>
+        </View>
+        <View style={styles.cardBadge}>
+          <Text style={styles.cardBadgeText}>{lc.count}</Text>
+        </View>
+        {!expanded && <Text style={styles.cardArrow}>›</Text>}
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={styles.accordion}>
+          <View style={styles.accordionDivider} />
+          <View style={styles.accordionActions}>
+            <TouchableOpacity style={styles.accordionBtn} onPress={onPress}>
+              <Text style={[styles.accordionBtnText, { color: Colors.primary }]}>Ver itens</Text>
+            </TouchableOpacity>
+            <View style={styles.accordionSep} />
+            <TouchableOpacity style={styles.accordionBtn} onPress={onEdit}>
+              <Edit3 size={14} color={Colors.primary} strokeWidth={2} />
+              <Text style={[styles.accordionBtnText, { color: Colors.primary }]}>Editar</Text>
+            </TouchableOpacity>
+            <View style={styles.accordionSep} />
+            <TouchableOpacity style={styles.accordionBtn} onPress={onDelete}>
+              <Trash2 size={14} color={Colors.error} strokeWidth={2} />
+              <Text style={[styles.accordionBtnText, { color: Colors.error }]}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -101,8 +110,7 @@ export default function PertencesTab() {
   const [savingLocation, setSavingLocation] = useState(false);
   const [deletingLocation, setDeletingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [activeLocationMenu, setActiveLocationMenu] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null);
 
   // ── Item form (FAB) ──
   const [showItemForm, setShowItemForm] = useState(false);
@@ -196,21 +204,36 @@ export default function PertencesTab() {
 
   function renderLocationCard({ item: lc }: { item: LocationCount }) {
     const isNull = lc.locationId === null;
+    const navigate = () => {
+      if (isNull) {
+        router.push('/inventory/location-detail?locationId=null&locationName=Sem+localização');
+      } else {
+        router.push(
+          `/inventory/location-detail?locationId=${lc.locationId}&locationName=${encodeURIComponent(lc.locationName)}`
+        );
+      }
+    };
     return (
       <LocationCard
         lc={lc}
-        onPress={() => {
-          if (isNull) {
-            router.push('/inventory/location-detail?locationId=null&locationName=Sem+localização');
-          } else {
-            router.push(
-              `/inventory/location-detail?locationId=${lc.locationId}&locationName=${encodeURIComponent(lc.locationName)}`
-            );
-          }
+        expanded={expandedLocationId === lc.locationId}
+        onPress={navigate}
+        onToggle={isNull ? undefined : () => setExpandedLocationId((prev) => prev === lc.locationId ? null : lc.locationId)}
+        onEdit={isNull ? undefined : () => {
+          setExpandedLocationId(null);
+          const loc = locations.find((l) => l.id === lc.locationId);
+          if (!loc) return;
+          setEditingLocation(loc);
+          setLocationError(null);
+          setShowEditLocationModal(true);
         }}
-        onMenuOpen={isNull ? undefined : (id, pos) => {
-          setActiveLocationMenu(id);
-          setMenuPosition(pos);
+        onDelete={isNull ? undefined : () => {
+          setExpandedLocationId(null);
+          const loc = locations.find((l) => l.id === lc.locationId);
+          if (!loc) return;
+          setLocationToDelete(loc);
+          setLocationError(null);
+          setShowDeleteLocationConfirm(true);
         }}
       />
     );
@@ -223,7 +246,7 @@ export default function PertencesTab() {
     const barColor = meta?.barColor ?? Colors.border;
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, styles.cardRow]}
         onPress={() => {
           const dest = isNull ? 'null' : dc.destination!;
           router.push(
@@ -262,13 +285,15 @@ export default function PertencesTab() {
           onPress={() => router.push('/inventory/history')}
           activeOpacity={0.7}
         >
-          <View style={styles.cardIconWrap}>
-            <Text style={styles.cardIcon}>🕐</Text>
+          <View style={styles.cardRow}>
+            <View style={styles.cardIconWrap}>
+              <Text style={styles.cardIcon}>🕐</Text>
+            </View>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardName}>Histórico</Text>
+            </View>
+            <Text style={styles.cardArrow}>›</Text>
           </View>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardName}>Histórico</Text>
-          </View>
-          <Text style={styles.cardArrow}>›</Text>
         </TouchableOpacity>
       </View>
     );
@@ -360,54 +385,6 @@ export default function PertencesTab() {
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
-
-      {/* Dropdown menu de localização */}
-      <Modal
-        visible={activeLocationMenu !== null}
-        transparent
-        animationType="none"
-        onRequestClose={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => { setActiveLocationMenu(null); setMenuPosition(null); }}
-        >
-          {menuPosition && (
-            <View style={[styles.dropdownMenu, { top: menuPosition.top, right: menuPosition.right }]}>
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  const loc = locations.find((l) => l.id === activeLocationMenu);
-                  if (!loc) return;
-                  setEditingLocation(loc);
-                  setLocationError(null);
-                  setShowEditLocationModal(true);
-                  setActiveLocationMenu(null);
-                  setMenuPosition(null);
-                }}
-              >
-                <Text style={styles.dropdownOptionText}>Editar local</Text>
-              </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  const loc = locations.find((l) => l.id === activeLocationMenu);
-                  if (!loc) return;
-                  setLocationToDelete(loc);
-                  setLocationError(null);
-                  setShowDeleteLocationConfirm(true);
-                  setActiveLocationMenu(null);
-                  setMenuPosition(null);
-                }}
-              >
-                <Text style={[styles.dropdownOptionText, { color: Colors.error }]}>Excluir local</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Modal>
 
       {/* Modais de localização */}
       <AddLocationModal
@@ -501,19 +478,56 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 14,
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  cardExpanded: {
+    borderColor: Colors.primary,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
     gap: 10,
   },
   historyCard: {
     marginTop: 8,
     borderStyle: 'dashed',
+  },
+  accordion: {
+    paddingBottom: 4,
+  },
+  accordionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 12,
+    marginBottom: 4,
+  },
+  accordionActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+  },
+  accordionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  accordionBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  accordionSep: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 2,
   },
   cardIconWrap: {
     width: 38,
@@ -558,13 +572,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: Colors.textSecondary,
   },
-  menuButton: {
-    padding: 4,
-  },
-  menuDots: {
-    fontSize: 18,
-    color: Colors.textSecondary,
-  },
   addLocationButton: {
     marginVertical: 4,
     alignItems: 'center',
@@ -579,21 +586,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '600',
   },
-  dropdownMenu: {
-    position: 'absolute',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 4,
-    width: 160,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-  },
-  dropdownOption: { padding: 12 },
-  dropdownOptionText: { fontSize: 14, color: Colors.textPrimary },
-  dropdownDivider: { height: 1, backgroundColor: Colors.border },
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -628,7 +620,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  skeletonCard: { opacity: 0.6, marginHorizontal: 16 },
+  skeletonCard: { opacity: 0.6, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, marginHorizontal: 16 },
   skeletonIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: Colors.border },
   skeletonName: { flex: 1, height: 14, borderRadius: 6, backgroundColor: Colors.border },
   skeletonBadge: { width: 32, height: 22, borderRadius: 11, backgroundColor: Colors.border },

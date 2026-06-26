@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useHousehold } from '../../../contexts/HouseholdContext';
@@ -23,6 +22,22 @@ function formatDatePT(iso: string): string {
   return `${d.getDate()} ${MONTHS_PT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+function HistorySkeleton() {
+  return (
+    <View style={styles.skeletonContainer}>
+      {[...Array(8)].map((_, i) => (
+        <View key={i} style={styles.skeletonRow}>
+          <View style={styles.skeletonInfo}>
+            <View style={styles.skeletonName} />
+            <View style={styles.skeletonMeta} />
+          </View>
+          <View style={styles.skeletonBtn} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function HistoryScreen() {
   const router = useRouter();
   const { selectedHousehold } = useHousehold();
@@ -35,6 +50,7 @@ export default function HistoryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const fetchingRef = useRef(false);
 
   async function fetchPhotos(newItems: InventoryItem[]) {
     const paths = newItems
@@ -47,6 +63,8 @@ export default function HistoryScreen() {
 
   async function loadPage(pageNum: number, reset = false) {
     if (!selectedHousehold) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (pageNum === 1) setLoading(true);
     else setLoadingMore(true);
     setError(null);
@@ -63,6 +81,7 @@ export default function HistoryScreen() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar histórico.');
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
@@ -142,9 +161,7 @@ export default function HistoryScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
+        <HistorySkeleton />
       ) : error ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
@@ -215,6 +232,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   restoreButtonText: { fontSize: 13, color: '#ffffff', fontWeight: '500' },
+  skeletonContainer: { flex: 1, paddingTop: 8, paddingHorizontal: 16 },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    opacity: 0.6,
+  },
+  skeletonInfo: { flex: 1, gap: 8 },
+  skeletonName: { height: 14, borderRadius: 6, backgroundColor: Colors.border },
+  skeletonMeta: { height: 11, width: '50%', borderRadius: 6, backgroundColor: Colors.border },
+  skeletonBtn: { width: 70, height: 30, borderRadius: 8, backgroundColor: Colors.border },
   errorText: { color: Colors.error, fontSize: 14, textAlign: 'center', marginBottom: 12 },
   retryButton: {
     paddingHorizontal: 16,
