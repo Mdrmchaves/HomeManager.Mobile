@@ -2,7 +2,7 @@
 
 > Documento de referência para o Claude Code e novos developers.
 > **Fonte de verdade: o código. Se este documento divergir do código, o código tem razão.**
-> Última actualização: 2026-04-02
+> Última actualização: 2026-06-23
 
 ---
 
@@ -23,8 +23,8 @@ Consome a API .NET 10 em `D:/Repos/HomeManager`. Autenticação via Supabase (JW
 - `item-form.tsx` — criar/editar item (câmara, localização, destino, dono, dar saída, apagar).
 - Dashboard e Despensa — placeholders ("em breve").
 - **Tarefas** — módulo completo: DateCarousel, TaskCard com accordion, skeleton loading, optimistic updates, TaskForm modal com recorrência (diária/semanal/mensal).
-- **⚠️ BUG**: `household-setup.tsx` usa `useAuth().refreshHouseholds` em vez de `useHousehold().refreshHouseholds` — o `HouseholdContext` foi criado recentemente e este componente não foi actualizado.
-- **Código morto**: `DestinationFilter.tsx`, `SearchBar.tsx`, `LocationGroupCard.tsx` — resquícios de uma refactoring anterior; nenhuma tela os importa actualmente.
+- `household-setup.tsx` — usa `useHousehold().refreshHouseholds` correctamente (bug histórico corrigido).
+- Código morto removido: `DestinationFilter.tsx`, `SearchBar.tsx`, `LocationGroupCard.tsx`, `hooks/useInventory.ts` (2026-06-23).
 
 **Nota importante — Categoria removida**:
 `categoryId` foi **removido intencionalmente** do Mobile após testes mostrarem que o conceito não faz sentido para a app. O `item-form.tsx` não tem seletor de categoria — este é o estado correcto. O backend ainda tem os endpoints de categoria e `categoryId` nos DTOs, mas o cleanup da API está pendente.
@@ -637,18 +637,17 @@ Sempre que alterar:
 - `fetchingRef` adicionado à Tela 2b
 - Skeleton loading (8 linhas) substituiu `ActivityIndicator` na Tela 2b
 
-#### 2. 🐛 BUG — `household-setup.tsx` usa `useAuth()` para `refreshHouseholds`
+#### 2. ✅ BUG — `household-setup.tsx` — RESOLVIDO (2026-06-23)
 
-Deve usar `useHousehold()` após a criação do `HouseholdContext`. Verificar se `refreshHouseholds` está exposto por `HouseholdContext` e actualizar a importação.
+Já usa `useHousehold().refreshHouseholds` correctamente. O CLAUDE.md anterior estava desactualizado.
 
-#### 3. 🧹 Limpeza — Remover código morto
+#### 3. ✅ Limpeza — Código morto removido (2026-06-23)
 
+Removidos em 2026-06-23:
 - `components/inventory/DestinationFilter.tsx`
 - `components/inventory/SearchBar.tsx`
 - `components/inventory/LocationGroupCard.tsx`
 - `hooks/useInventory.ts`
-
-Nenhum destes é importado por qualquer tela activa. Resquícios da refactoring de UI anterior.
 
 #### 4. 🧹 Limpeza — Remover `categoryId` da API
 
@@ -705,8 +704,7 @@ Aba actualmente placeholder. Backend `PantryController` já funcional.
 | **`locationId="null"` (string)** | Para itens sem localização, passar a string `"null"`, não o valor null |
 | **`destination=""` (string vazia)** | `DESTINATION_ALL_OPTIONS` usa `value: ''` para "Sem destino" — não é null |
 | **`ownerName` não vem da API** | O campo existe no tipo mas tem comentário explícito — não assumir que a API o retorna |
-| **`refreshHouseholds` em `useAuth()`** | Bug conhecido — deve ser `useHousehold()`. Não replicar este padrão. |
-| **Código morto nos components** | `DestinationFilter`, `SearchBar`, `LocationGroupCard` existem mas não são usados — não importar |
+| **`refreshHouseholds` via `useHousehold()`** | Já correcto em `household-setup.tsx` — não replicar via `useAuth()` |
 | **`expo-secure-store` está instalado** | Mas não é usado para auth — não usar para persistência de sessão |
 
 ---
