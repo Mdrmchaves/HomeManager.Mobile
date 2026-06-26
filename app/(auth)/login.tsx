@@ -50,8 +50,8 @@ function Logo() {
   );
 }
 
-type Mode = 'login' | 'register';
-type Screen = 'form' | 'confirm';
+type Mode = 'login' | 'register' | 'forgot';
+type Screen = 'form' | 'confirm' | 'forgot-sent';
 
 export default function LoginScreen() {
   const [mode, setMode] = useState<Mode>('login');
@@ -109,6 +109,25 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleForgot() {
+    setError('');
+    if (!email.trim()) {
+      setError('O email é obrigatório.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await AuthService.resetPasswordForEmail(email.trim());
+      setConfirmedEmail(email.trim());
+      setScreen('forgot-sent');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ocorreu um erro. Tenta novamente.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleBackToLogin() {
     setScreen('form');
     setMode('login');
@@ -117,6 +136,25 @@ export default function LoginScreen() {
     setPassword('');
     setError('');
     setConfirmedEmail('');
+  }
+
+  if (screen === 'forgot-sent') {
+    return (
+      <View style={styles.root}>
+        <View style={styles.card}>
+          <Text style={styles.confirmIcon}>📧</Text>
+          <Text style={styles.confirmTitle}>Email enviado</Text>
+          <Text style={styles.confirmBody}>Enviámos um link de recuperação para:</Text>
+          <Text style={styles.confirmEmail}>{confirmedEmail}</Text>
+          <Text style={styles.confirmHint}>
+            Abre o email e segue as instruções para redefinires a tua password.
+          </Text>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleBackToLogin}>
+            <Text style={styles.secondaryButtonText}>Voltar ao login</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   if (screen === 'confirm') {
@@ -150,25 +188,29 @@ export default function LoginScreen() {
           {/* Logo */}
           <Logo />
 
-          {/* Mode toggle */}
-          <View style={styles.toggleBar}>
-            <TouchableOpacity
-              style={[styles.toggleBtn, mode === 'login' && styles.toggleBtnActive]}
-              onPress={() => switchMode('login')}
-            >
-              <Text style={[styles.toggleText, mode === 'login' && styles.toggleTextActive]}>
-                Entrar
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleBtn, mode === 'register' && styles.toggleBtnActive]}
-              onPress={() => switchMode('register')}
-            >
-              <Text style={[styles.toggleText, mode === 'register' && styles.toggleTextActive]}>
-                Criar conta
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Mode toggle — oculto no modo forgot */}
+          {mode !== 'forgot' ? (
+            <View style={styles.toggleBar}>
+              <TouchableOpacity
+                style={[styles.toggleBtn, mode === 'login' && styles.toggleBtnActive]}
+                onPress={() => switchMode('login')}
+              >
+                <Text style={[styles.toggleText, mode === 'login' && styles.toggleTextActive]}>
+                  Entrar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleBtn, mode === 'register' && styles.toggleBtnActive]}
+                onPress={() => switchMode('register')}
+              >
+                <Text style={[styles.toggleText, mode === 'register' && styles.toggleTextActive]}>
+                  Criar conta
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.forgotTitle}>Recuperar password</Text>
+          )}
 
           {/* Name field (register only) */}
           {mode === 'register' && (
@@ -198,34 +240,42 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              returnKeyType="next"
+              returnKeyType={mode === 'forgot' ? 'done' : 'next'}
+              onSubmitEditing={mode === 'forgot' ? handleForgot : undefined}
             />
           </View>
 
-          {/* Password */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                placeholder="••••••••"
-                placeholderTextColor={Colors.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleSubmit}
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword((v) => !v)}
-              >
-                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
-              </TouchableOpacity>
+          {/* Password — oculto no modo forgot */}
+          {mode !== 'forgot' && (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="••••••••"
+                  placeholderTextColor={Colors.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword((v) => !v)}
+                >
+                  <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+                </TouchableOpacity>
+              </View>
+              {mode === 'login' && (
+                <TouchableOpacity style={styles.forgotLink} onPress={() => switchMode('forgot')}>
+                  <Text style={styles.forgotLinkText}>Esqueci a password</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          </View>
+          )}
 
           {/* Error message */}
           {!!error && (
@@ -237,19 +287,25 @@ export default function LoginScreen() {
           {/* Submit button */}
           <TouchableOpacity
             style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
-            onPress={handleSubmit}
+            onPress={mode === 'forgot' ? handleForgot : handleSubmit}
             disabled={loading}
           >
             <Text style={styles.primaryButtonText}>
               {loading
-                ? mode === 'login'
-                  ? 'A entrar...'
-                  : 'A criar conta...'
-                : mode === 'login'
-                ? 'Entrar'
-                : 'Criar conta'}
+                ? mode === 'forgot' ? 'A enviar...' : mode === 'login' ? 'A entrar...' : 'A criar conta...'
+                : mode === 'forgot' ? 'Enviar link' : mode === 'login' ? 'Entrar' : 'Criar conta'}
             </Text>
           </TouchableOpacity>
+
+          {/* Voltar ao login — modo forgot */}
+          {mode === 'forgot' && (
+            <TouchableOpacity
+              style={[styles.secondaryButton, { marginTop: 10 }]}
+              onPress={handleBackToLogin}
+            >
+              <Text style={styles.secondaryButtonText}>Voltar ao login</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -396,6 +452,23 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // Forgot mode
+  forgotTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+  },
+  forgotLinkText: {
+    fontSize: 12,
+    color: Colors.primary,
   },
 
   // Confirmation screen
