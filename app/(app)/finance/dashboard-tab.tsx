@@ -52,7 +52,9 @@ export function DashboardTab() {
   const { selectedHousehold } = useHousehold();
   const { dashboard, dashboardLoading, rates, activeMonth, reloadDashboard } = useFinance();
 
-  const [selectedCurrency, setSelectedCurrency] = useState<string>('');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(
+    () => selectedHousehold?.defaultCurrency ?? 'BRL'
+  );
 
   useEffect(() => {
     if (selectedHousehold && !dashboard) {
@@ -60,16 +62,9 @@ export function DashboardTab() {
     }
   }, []);
 
-  // Default para baseCurrency quando dashboard carrega
+  // Reset ao trocar de household — usa a moeda da nova casa
   useEffect(() => {
-    if (dashboard?.baseCurrency) {
-      setSelectedCurrency((prev) => prev || dashboard.baseCurrency);
-    }
-  }, [dashboard?.baseCurrency]);
-
-  // Reset ao trocar de household
-  useEffect(() => {
-    setSelectedCurrency('');
+    setSelectedCurrency(selectedHousehold?.defaultCurrency ?? 'BRL');
   }, [selectedHousehold?.id]);
 
   // ── Conversão client-side ──────────────────────────────────────────────────
@@ -138,7 +133,7 @@ export function DashboardTab() {
             { color: balance >= 0 ? '#059669' : Colors.error },
           ]}
         >
-          {sym} {Math.abs(balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          {sym} {Math.abs(balance).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
         <Text style={styles.balanceCaption}>
           {balance >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
@@ -184,8 +179,8 @@ export function DashboardTab() {
                 <View style={styles.invoiceHeader}>
                   <Text style={styles.invoiceName}>{inv.accountName}</Text>
                   <Text style={[styles.invoiceAmount, { color: inv.isOverLimit ? Colors.error : Colors.textPrimary }]}>
-                    {sym} {invoiceTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    {limit != null ? ` / ${sym} ${limit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                    {sym} {invoiceTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {limit != null ? ` / ${sym} ${limit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
                   </Text>
                 </View>
                 {limit != null && (
@@ -218,20 +213,23 @@ export function DashboardTab() {
                 <Text style={styles.categoryName}>{CATEGORY_LABELS[cat]}</Text>
                 <View style={styles.categoryAmounts}>
                   <Text style={[styles.categoryTotal, { color: Colors.error }]}>
-                    {sym} {catTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {sym} {catTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
                   {catBudget > 0 && (
-                    <Text style={styles.categoryBudget}>
-                      {' '}/ {sym} {catBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </Text>
+                    <>
+                      <Text style={styles.categoryBudget}>
+                        {' '}/ {sym} {catBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Text>
+                      <Text style={[styles.categoryPct, { color: breakdown.usedPercent >= 100 ? Colors.error : Colors.textSecondary }]}>
+                        {' '}· {breakdown.usedPercent.toFixed(0)}%
+                      </Text>
+                    </>
                   )}
                 </View>
               </View>
               {catBudget > 0 && (
                 <View style={{ marginTop: 5 }}>
-                  {/* usedPercent é ratio server-side, não muda com a moeda */}
                   <ProgressBar percent={breakdown.usedPercent} color={colors.dot} height={5} />
-                  <Text style={styles.usedPct}>{breakdown.usedPercent.toFixed(0)}%</Text>
                 </View>
               )}
             </View>
@@ -447,6 +445,10 @@ const styles = StyleSheet.create({
   categoryBudget: {
     fontSize: 12,
     color: Colors.textSecondary,
+  },
+  categoryPct: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyHint: {
     fontSize: 13,
