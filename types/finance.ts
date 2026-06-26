@@ -167,8 +167,6 @@ export interface UpdateTransactionRequest {
 
 export interface UpsertBudgetRequest {
   householdId: string;
-  income: number;
-  incomeCurrency: string;
   goals: Record<string, number>;
 }
 

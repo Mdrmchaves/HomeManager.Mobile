@@ -9,6 +9,8 @@ import type {
   FinancePlanningItem,
   FinanceRates,
   FinanceDashboard,
+  CreateTransactionRequest,
+  UpdateTransactionRequest,
 } from '../types/finance';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,6 +52,11 @@ interface FinanceContextValue {
   patchAccount: (account: FinanceAccount) => void;
   removeAccount: (id: string) => void;
   addAccount: (account: FinanceAccount) => void;
+
+  // Mutations — transações (cascade automático)
+  createTransaction: (payload: CreateTransactionRequest) => Promise<FinanceTransaction>;
+  updateTransaction: (id: string, payload: UpdateTransactionRequest) => Promise<FinanceTransaction>;
+  deleteTransaction: (tx: FinanceTransaction) => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -285,6 +292,51 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setAccounts((list) => list.filter((a) => a.id !== id));
   }, []);
 
+  // ── Mutations — transações ──────────────────────────────────────────────────
+
+  const createTransaction = useCallback(async (payload: CreateTransactionRequest): Promise<FinanceTransaction> => {
+    const tx = await FinanceService.createTransaction(payload);
+    markAccountsDirty();
+    markDashboardDirty();
+    if (payload.planningItemId) {
+      setPlanningItems((list) =>
+        list.map((p) =>
+          p.id === payload.planningItemId
+            ? { ...p, paidThisMonth: true, paidTransactionId: tx.id }
+            : p
+        )
+      );
+      markPlanningDirty();
+    }
+    return tx;
+  }, [markAccountsDirty, markDashboardDirty, markPlanningDirty]);
+
+  const updateTransaction = useCallback(async (id: string, payload: UpdateTransactionRequest): Promise<FinanceTransaction> => {
+    const tx = await FinanceService.updateTransaction(id, payload);
+    markAccountsDirty();
+    markDashboardDirty();
+    if (payload.planningItemId || payload.clearPlanningItemId) {
+      markPlanningDirty();
+    }
+    return tx;
+  }, [markAccountsDirty, markDashboardDirty, markPlanningDirty]);
+
+  const deleteTransaction = useCallback(async (tx: FinanceTransaction): Promise<void> => {
+    await FinanceService.deleteTransaction(tx.id);
+    markAccountsDirty();
+    markDashboardDirty();
+    if (tx.planningItemId) {
+      setPlanningItems((list) =>
+        list.map((p) =>
+          p.id === tx.planningItemId
+            ? { ...p, paidThisMonth: false, paidTransactionId: undefined }
+            : p
+        )
+      );
+      markPlanningDirty();
+    }
+  }, [markAccountsDirty, markDashboardDirty, markPlanningDirty]);
+
   // ── Reset ao trocar household ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -329,6 +381,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         addAccount,
         patchAccount,
         removeAccount,
+        createTransaction,
+        updateTransaction,
+        deleteTransaction,
       }}
     >
       {children}

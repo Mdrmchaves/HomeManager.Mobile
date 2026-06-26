@@ -4,10 +4,10 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { useToast } from '../../../contexts/ToastContext';
 import { CheckCircle2, Circle, CreditCard, Edit3, Plus, Repeat, Trash2 } from 'lucide-react-native';
 import { PlanningService } from '../../../services/planning.service';
 import { useFinance } from '../../../contexts/FinanceContext';
@@ -360,14 +360,16 @@ export function PlanningTab() {
     removePlanningItem,
     reloadPlanningItems,
     markDashboardDirty,
-    markAccountsDirty,
   } = useFinance();
 
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<FinancePlanningItem | undefined>();
   const [payingItem, setPayingItem] = useState<FinancePlanningItem | undefined>();
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const [selectedCurrency, setSelectedCurrency] = useState<string>('BRL');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(
+    () => selectedHousehold?.defaultCurrency ?? 'BRL'
+  );
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (selectedHousehold && planningItems.length === 0 && !planningLoading) {
@@ -375,10 +377,15 @@ export function PlanningTab() {
     }
   }, []);
 
-  // Sincroniza moeda default quando taxas carregam
+  // Reset ao trocar de household — usa a moeda da nova casa
+  useEffect(() => {
+    setSelectedCurrency(selectedHousehold?.defaultCurrency ?? 'BRL');
+  }, [selectedHousehold?.id]);
+
+  // Fallback: se a moeda seleccionada não existir nas taxas, volta à default da casa
   useEffect(() => {
     if (rates?.rates && !rates.rates[selectedCurrency]) {
-      setSelectedCurrency('BRL');
+      setSelectedCurrency(selectedHousehold?.defaultCurrency ?? 'BRL');
     }
   }, [rates]);
 
@@ -388,7 +395,7 @@ export function PlanningTab() {
       removePlanningItem(item.id);
       markDashboardDirty();
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Erro ao apagar item.');
+      showToast(e.message ?? 'Erro ao apagar item.', 'error');
     }
   }
 
@@ -522,12 +529,7 @@ export function PlanningTab() {
             planningItemId: payingItem.id,
           }}
           onClose={() => setPayingItem(undefined)}
-          onSaved={async () => {
-            setPayingItem(undefined);
-            markDashboardDirty();
-            markAccountsDirty();
-            await reloadPlanningItems();
-          }}
+          onSaved={() => setPayingItem(undefined)}
         />
       )}
     </View>

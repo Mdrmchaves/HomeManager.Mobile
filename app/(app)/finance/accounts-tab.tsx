@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { useToast } from '../../../contexts/ToastContext';
 import { useFocusEffect } from 'expo-router';
 import { Plus, CreditCard, Landmark, Edit3, Trash2, RefreshCw } from 'lucide-react-native';
 import { FinanceService } from '../../../services/finance.service';
@@ -53,6 +54,7 @@ export function AccountsTab() {
   const [recalculating, setRecalculating] = useState<string | null>(null);
   // #6 — accordion de opções por conta
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useFocusEffect(
     useCallback(() => {
@@ -67,7 +69,7 @@ export function AccountsTab() {
       const updated = await FinanceService.recalculateAccount(account.id);
       patchAccount(updated);
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Erro ao recalcular saldo.');
+      showToast(e.message ?? 'Erro ao recalcular saldo.', 'error');
     } finally {
       setRecalculating(null);
     }
@@ -89,7 +91,7 @@ export function AccountsTab() {
               removeAccount(account.id);
               markDashboardDirty();
             } catch (e: any) {
-              Alert.alert('Erro', e.message ?? 'Erro ao apagar conta.');
+              showToast(e.message ?? 'Erro ao apagar conta.', 'error');
             }
           },
         },

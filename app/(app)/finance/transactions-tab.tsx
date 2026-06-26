@@ -18,6 +18,7 @@ import { Colors } from '../../../constants/colors';
 import { FINANCE_CATEGORIES, CATEGORY_LABELS } from '../../../constants/finance-constants';
 import type { FinanceTransaction, TransactionType, FinanceCategory } from '../../../types/finance';
 import { TransactionForm } from './transaction-form';
+import { useToast } from '../../../contexts/ToastContext';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -132,8 +133,7 @@ export function TransactionsTab() {
   const {
     accounts,
     activeMonth,
-    markAccountsDirty,
-    markDashboardDirty,
+    deleteTransaction,
   } = useFinance();
 
   // Fonte de verdade: todos os itens do mês, sem filtro
@@ -147,6 +147,7 @@ export function TransactionsTab() {
 
   const [showForm, setShowForm] = useState(false);
   const [editTx, setEditTx] = useState<FinanceTransaction | undefined>();
+  const { showToast } = useToast();
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
 
   // Carrega TODOS os itens do mês de uma vez (sem filtros no servidor)
@@ -171,7 +172,7 @@ export function TransactionsTab() {
       }
       setAllItems(collected);
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Erro ao carregar transações.');
+      showToast(e.message ?? 'Erro ao carregar transações.', 'error');
     } finally {
       fetchingRef.current = false;
       setLoading(false);
@@ -202,12 +203,10 @@ export function TransactionsTab() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await FinanceService.deleteTransaction(tx.id);
+            await deleteTransaction(tx);
             setAllItems((prev) => prev.filter((t) => t.id !== tx.id));
-            markAccountsDirty();
-            markDashboardDirty();
           } catch (e: any) {
-            Alert.alert('Erro', e.message ?? 'Erro ao apagar transação.');
+            showToast(e.message ?? 'Erro ao apagar transação.', 'error');
           }
         },
       },
