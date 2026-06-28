@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import {
   Circle,
@@ -52,6 +52,8 @@ export const TaskCard = memo(function TaskCard({
   onEdit,
   onDelete,
 }: TaskCardProps) {
+  const [descExpanded, setDescExpanded] = useState(false);
+
   const today = startOfToday();
   const isOverdue =
     task.status === 'active' &&
@@ -69,22 +71,32 @@ export const TaskCard = memo(function TaskCard({
         isCompleted && styles.cardCompleted,
         expanded && styles.cardExpanded,
       ]}
+      onPress={() => {
+        if (expanded) { onToggle(); return; }
+        if (task.description) setDescExpanded((v) => !v);
+      }}
       onLongPress={onToggle}
-      onPress={expanded ? onToggle : undefined}
       delayLongPress={350}
       activeOpacity={0.75}
     >
       {/* Main row */}
       <View style={styles.cardTop}>
-        {isCompleted ? (
-          <CheckCircle2 size={20} color={Colors.primary} strokeWidth={2} />
-        ) : (
-          <Circle
-            size={20}
-            color={isOverdue ? Colors.error : Colors.textSecondary}
-            strokeWidth={2}
-          />
-        )}
+        <TouchableOpacity
+          onPress={isCompleted ? onReopen : onComplete}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.6}
+        >
+          {isCompleted ? (
+            <CheckCircle2 size={20} color={Colors.primary} strokeWidth={2} />
+          ) : (
+            <Circle
+              size={20}
+              color={isOverdue ? Colors.error : Colors.textSecondary}
+              strokeWidth={2}
+            />
+          )}
+        </TouchableOpacity>
+
         <View style={styles.cardContent}>
           <View style={styles.cardTitleRow}>
             <Text
@@ -103,9 +115,17 @@ export const TaskCard = memo(function TaskCard({
         </View>
       </View>
 
-      {/* Accordion */}
+      {/* Description (single tap) */}
+      {descExpanded && !expanded && !!task.description && (
+        <Text style={styles.cardDescription}>{task.description}</Text>
+      )}
+
+      {/* Accordion (long press) */}
       {expanded && (
         <View style={styles.accordion}>
+          {!!task.description && (
+            <Text style={styles.cardDescription}>{task.description}</Text>
+          )}
           <View style={styles.accordionDivider} />
           <View style={styles.accordionActions}>
             {!isCompleted ? (
@@ -198,6 +218,12 @@ const styles = StyleSheet.create({
   cardDateOverdue: {
     color: Colors.error,
     fontWeight: '600',
+  },
+  cardDescription: {
+    marginTop: 8,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   accordion: {
     paddingTop: 4,
