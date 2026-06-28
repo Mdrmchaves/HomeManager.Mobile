@@ -97,16 +97,9 @@ export const TaskCard = memo(function TaskCard({
               <Repeat size={13} color={Colors.textSecondary} strokeWidth={2} />
             )}
           </View>
-          <View style={styles.cardMeta}>
-            <Text style={[styles.cardDate, isOverdue && styles.cardDateOverdue]}>
-              {dueLabel}
-            </Text>
-            {!!task.assigneeName && (
-              <Text style={styles.cardAssignee} numberOfLines={1}>
-                {task.assigneeName}
-              </Text>
-            )}
-          </View>
+          <Text style={[styles.cardMeta, isOverdue && styles.cardDateOverdue]} numberOfLines={1}>
+            {dueLabel}{task.assigneeName ? ` · ${task.assigneeName}` : ''}
+          </Text>
         </View>
       </View>
 
@@ -199,20 +192,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  cardDate: {
     fontSize: 12,
     color: Colors.textSecondary,
-  },
-  cardAssignee: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    flexShrink: 1,
-    textAlign: 'right',
   },
   cardDateOverdue: {
     color: Colors.error,
