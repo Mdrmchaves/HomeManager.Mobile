@@ -154,7 +154,7 @@ export function PlanningForm({ visible, item, onClose, onSaved }: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
       >
         <View style={styles.sheet}>

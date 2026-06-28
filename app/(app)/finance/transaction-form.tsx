@@ -241,7 +241,7 @@ export function TransactionForm({ visible, transaction, prefill, onClose, onSave
   return (
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
       >
         <View style={styles.sheet}>
